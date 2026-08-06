@@ -1,0 +1,72 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: gnsw-backend
+
+  datasource:
+    # Railway provides DATABASE_URL. Local dev can use DATASOURCE_URL or the local fallback.
+    url: ${DATABASE_URL:${DATASOURCE_URL:jdbc:postgresql://localhost:5432/gnsw_db}}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: ${JPA_SHOW_SQL:true}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+    time-zone: UTC
+
+# JWT & Frontend Configuration
+app:
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970337336763979244226452948404D635166546A576E5A7234753778214125442A47}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  frontend:
+    member-portal-url: ${MEMBER_PORTAL_URL:http://localhost:5175}
+    admin-url: ${ADMIN_URL:http://localhost:5174}
+
+# Paystack Configuration
+paystack:
+  secret-key: ${PAYSTACK_SECRET_KEY:}
+  public-key: ${PAYSTACK_PUBLIC_KEY:}
+  plans:
+    affiliate: ${PAYSTACK_PLAN_AFFILIATE:}
+    associate: ${PAYSTACK_PLAN_ASSOCIATE:}
+    member: ${PAYSTACK_PLAN_MEMBER:}
+
+# Logging
+logging:
+  level:
+    com.gnsw: ${LOG_LEVEL_COM_GNSW:DEBUG}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:INFO}

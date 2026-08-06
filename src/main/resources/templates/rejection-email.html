@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Application Update</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:20px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background-color:#111418;padding:30px 40px;text-align:center;">
+              <h1 style="color:#ffffff;font-size:24px;margin:0;font-family:Georgia,'Times New Roman',serif;">GNSW</h1>
+              <p style="color:#d86d70;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Guild of Nigerian Speechwriters</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <h2 style="color:#111418;font-size:20px;margin:0 0 12px;">Application Update</h2>
+              <p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 16px;">
+                Dear <strong th:text="${firstName}">Applicant</strong>,
+              </p>
+              <p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 16px;">
+                Thank you for your interest in the Guild of Nigerian Speechwriters. After careful review, we regret to inform you that your membership application has been <strong style="color:#d86d70;">declined</strong>.
+              </p>
+              <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin-bottom:24px;">
+                <p style="color:#991b1b;font-size:12px;margin:0 0 4px;font-weight:bold;">Reason:</p>
+                <p style="color:#991b1b;font-size:14px;margin:0;line-height:1.5;" th:text="${reason}">The application did not meet the required criteria at this time.</p>
+              </div>
+              <p style="color:#666;font-size:14px;line-height:1.6;margin:0;">
+                You are welcome to reapply in the future. If you have any questions, please contact us at <a href="mailto:support@gnsw.ng" style="color:#8b1e21;text-decoration:underline;">support@gnsw.ng</a>.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f8f8f8;padding:20px 40px;text-align:center;border-top:1px solid #eee;">
+              <p style="color:#999;font-size:11px;margin:0;">&copy; 2026 Guild of Nigerian Speechwriters. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

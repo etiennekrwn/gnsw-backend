@@ -1,0 +1,13 @@
+# Railway/Nixpacks configuration for Spring Boot backend
+# Ensures Railway builds and runs the Java app correctly
+
+[providers]
+  java = true
+
+[build]
+  # Use the Maven wrapper to build
+  command = "./mvnw clean package -DskipTests"
+
+[deploy]
+  # Run the built jar
+  startCommand = "java -jar target/gnsw-backend-0.0.1-SNAPSHOT.jar"

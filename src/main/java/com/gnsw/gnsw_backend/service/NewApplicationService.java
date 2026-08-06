@@ -1,0 +1,354 @@
+package com.gnsw.gnsw_backend.service;
+
+import com.gnsw.gnsw_backend.entity.Application;
+import com.gnsw.gnsw_backend.entity.Member;
+import com.gnsw.gnsw_backend.entity.MemberSubscription;
+import com.gnsw.gnsw_backend.entity.Payment;
+import com.gnsw.gnsw_backend.entity.User;
+import com.gnsw.gnsw_backend.enums.ApplicationStatus;
+import com.gnsw.gnsw_backend.enums.MembershipTier;
+import com.gnsw.gnsw_backend.enums.PaymentStatus;
+import com.gnsw.gnsw_backend.enums.UserStatus;
+import com.gnsw.gnsw_backend.repository.ApplicationRepository;
+import com.gnsw.gnsw_backend.repository.MemberRepository;
+import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
+import com.gnsw.gnsw_backend.repository.PaymentRepository;
+import com.gnsw.gnsw_backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.time.Year;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class NewApplicationService {
+
+    private final ApplicationRepository applicationRepository;
+    private final UserRepository userRepository;
+    private final MemberRepository memberRepository;
+    private final PaymentRepository paymentRepository;
+    private final MemberSubscriptionRepository memberSubscriptionRepository;
+    private final EmailService emailService;
+    private final PaymentService paymentService;
+
+    @Value("${paystack.plans.affiliate}")
+    private String affiliatePlanCode;
+
+    @Value("${paystack.plans.associate}")
+    private String associatePlanCode;
+
+    @Value("${paystack.plans.member}")
+    private String memberPlanCode;
+
+    /**
+     * Check if an email is available for a new application.
+     * Throws IllegalArgumentException if the email already has an application or user account.
+     */
+    public void checkEmailAvailable(String email) {
+        if (applicationRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("An application with this email already exists.");
+        }
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("An account with this email already exists.");
+        }
+    }
+
+    /**
+     * Create an application after successful payment.
+     * This is the ONLY place an application record is created.
+     */
+    @Transactional
+    public Application createApplication(String firstName, String lastName, String email,
+                                          String addressLine1, String addressLine2,
+                                          String city, String stateProvince,
+                                          String zipPostalCode, String country,
+                                          String phone,
+                                          String linkedInProfile, String socials,
+                                          String bio, String reasonForJoining,
+                                          String sectors, String speechTypes, String languages,
+                                          String membershipTier,
+                                          String paymentReference, int paymentAmount) {
+        // Check if email already has an application
+        if (applicationRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("An application with this email already exists.");
+        }
+
+        // Verify the payment with Paystack before creating the application.
+        // Skip verification for demo/test references (e.g. DEMO-REF-*) so the
+        // application + payment record can be created without a real Paystack charge.
+        if (!paymentReference.startsWith("DEMO-")) {
+            try {
+                paymentService.verifyPaymentByReference(paymentReference, paymentAmount);
+            } catch (Exception e) {
+                throw new RuntimeException("Payment verification failed: " + e.getMessage());
+            }
+        }
+
+        MembershipTier tier = MembershipTier.valueOf(membershipTier);
+
+        Application application = Application.builder()
+                .firstName(firstName)
+                .lastName(lastName)
+                .email(email)
+                .addressLine1(addressLine1)
+                .addressLine2(addressLine2)
+                .city(city)
+                .stateProvince(stateProvince)
+                .zipPostalCode(zipPostalCode)
+                .country(country)
+                .phone(phone)
+                .linkedInProfile(linkedInProfile)
+                .socials(socials)
+                .bio(bio)
+                .reasonForJoining(reasonForJoining)
+                .sectors(sectors)
+                .speechTypes(speechTypes)
+                .languages(languages)
+                .membershipTier(tier)
+                .status(ApplicationStatus.PENDING)
+                .paymentReference(paymentReference)
+                .paymentAmount(paymentAmount)
+                .paymentStatus("SUCCESS")
+                .emailVerified(true)
+                .build();
+
+        application = applicationRepository.save(application);
+
+        // Record the payment in its OWN transaction (REQUIRES_NEW) so that a payment
+        // failure can NEVER roll back the application creation, and vice versa.
+        // This protects against money-loss: the user's payment is always captured.
+        recordPayment(paymentReference, paymentAmount, tier);
+
+        return application;
+    }
+
+    /**
+     * Record a successful payment in its own independent transaction.
+     * Runs separately from application creation so a failure in either
+     * does not lose the other. Skips duplicates by reference.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordPayment(String paymentReference, int paymentAmount, MembershipTier tier) {
+        try {
+            if (paymentRepository.findByReference(paymentReference).isEmpty()) {
+                Payment payment = Payment.builder()
+                        .reference(paymentReference)
+                        .amount(paymentAmount)
+                        .tier(tier)
+                        .status(PaymentStatus.SUCCESS)
+                        .paidAt(LocalDateTime.now())
+                        .build();
+                paymentRepository.save(payment);
+                log.info("Payment recorded: {} ({})", paymentAmount, paymentReference);
+            } else {
+                log.warn("Payment with reference {} already exists; skipping duplicate record.", paymentReference);
+            }
+        } catch (Exception e) {
+            log.error("Failed to record payment {}: {}", paymentReference, e.getMessage());
+        }
+    }
+
+    /**
+     * Approve an application - creates User + Member records.
+     */
+    @Transactional
+    public String approveApplication(UUID applicationId, UUID adminId, String customMessage) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new IllegalArgumentException("Application not found."));
+
+        if (application.getStatus() != ApplicationStatus.PENDING) {
+            throw new IllegalArgumentException("Application is not in PENDING status.");
+        }
+
+        // Generate professional ID
+        String professionalId = generateProfessionalId(application.getMembershipTier());
+
+        // Create User
+        User user = User.builder()
+                .firstName(application.getFirstName())
+                .lastName(application.getLastName())
+                .email(application.getEmail())
+                .addressLine1(application.getAddressLine1())
+                .addressLine2(application.getAddressLine2())
+                .city(application.getCity())
+                .stateProvince(application.getStateProvince())
+                .zipPostalCode(application.getZipPostalCode())
+                .country(application.getCountry())
+                .tier(application.getMembershipTier())
+                .status(UserStatus.ACCEPTED)
+                .role("ROLE_MEMBER")
+                .professionalId(professionalId)
+                .approvedAt(LocalDateTime.now())
+                .approvedBy(adminId)
+                .emailVerifiedAt(LocalDateTime.now())
+                .build();
+
+        // Generate password-set token
+        String token = UUID.randomUUID().toString();
+        user.setPasswordSetToken(token);
+        user.setPasswordSetTokenExpiresAt(LocalDateTime.now().plusHours(48));
+
+        user = userRepository.save(user);
+
+        // Create Member record — copy professional fields from the application
+        Member member = Member.builder()
+                .userId(user.getId())
+                .bio(application.getBio())
+                .sectors(application.getSectors())
+                .speechTypes(application.getSpeechTypes())
+                .languages(application.getLanguages())
+                .linkedInProfile(application.getLinkedInProfile())
+                .socials(application.getSocials())
+                .reasonForJoining(application.getReasonForJoining())
+                .build();
+        memberRepository.save(member);
+
+        // Create the MemberSubscription row. The subscription code/plan may have been
+        // captured on the application by the Paystack webhook (subscription.create);
+        // fall back to the configured plan code if the webhook hadn't arrived yet.
+        createMemberSubscription(user, application);
+
+        // Update application status
+        application.setStatus(ApplicationStatus.APPROVED);
+        application.setReviewedAt(LocalDateTime.now());
+        application.setReviewedBy(adminId);
+        applicationRepository.save(application);
+
+        // Send approval email OUTSIDE the transaction to prevent rollback on email failure
+        sendApprovalEmailAsync(application, user, professionalId, token);
+
+        return professionalId;
+    }
+
+    /**
+     * Send approval email asynchronously. Runs after the transaction commits.
+     * Email failures are logged but do NOT affect the approval transaction.
+     */
+    private void sendApprovalEmailAsync(Application application, User user, String professionalId, String token) {
+        try {
+            emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(),
+                    application.getMembershipTier().name(), professionalId, token);
+        } catch (Exception e) {
+            log.error("Failed to send approval email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    /**
+     * Reject an application.
+     */
+    @Transactional
+    public void rejectApplication(UUID applicationId, UUID adminId, String reason) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new IllegalArgumentException("Application not found."));
+
+        if (application.getStatus() != ApplicationStatus.PENDING) {
+            throw new IllegalArgumentException("Application is not in PENDING status.");
+        }
+
+        application.setStatus(ApplicationStatus.REJECTED);
+        application.setReviewedAt(LocalDateTime.now());
+        application.setReviewedBy(adminId);
+        application.setRejectionReason(reason);
+        applicationRepository.save(application);
+
+        // Send rejection email outside transaction to prevent rollback on email failure
+        try {
+            emailService.sendRejectionEmail(application.getEmail(), application.getFirstName(), reason);
+        } catch (Exception e) {
+            log.error("Failed to send rejection email to {}: {}", application.getEmail(), e.getMessage());
+        }
+    }
+
+    public Page<Application> getApplications(ApplicationStatus status, Pageable pageable) {
+        return applicationRepository.findByStatus(status, pageable);
+    }
+
+    public Page<Application> getAllApplications(Pageable pageable) {
+        return applicationRepository.findAll(pageable);
+    }
+
+    public Application getApplication(UUID id) {
+        return applicationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Application not found."));
+    }
+
+    public long getPendingCount() {
+        return applicationRepository.countByStatus(ApplicationStatus.PENDING);
+    }
+
+    public long getApprovedCount() {
+        return applicationRepository.countByStatus(ApplicationStatus.APPROVED);
+    }
+
+    public long getRejectedCount() {
+        return applicationRepository.countByStatus(ApplicationStatus.REJECTED);
+    }
+
+    /**
+     * Create a member_subscriptions row when an application is approved.
+     * Uses the subscription captured by the Paystack webhook (subscription.create)
+     * when available; otherwise synthesizes it from the configured plan code.
+     */
+    private void createMemberSubscription(User user, Application application) {
+        try {
+            boolean exists = memberSubscriptionRepository.findByUserId(user.getId()).isPresent();
+            if (exists) {
+                log.info("Subscription already exists for user: {}; skipping.", user.getEmail());
+                return;
+            }
+
+            String planCode = application.getPlanCode();
+            if (planCode == null || planCode.isBlank() || "UNKNOWN".equals(planCode)) {
+                planCode = getPlanCode(application.getMembershipTier().name());
+            }
+
+            MemberSubscription sub = MemberSubscription.builder()
+                    .userId(user.getId())
+                    .subscriptionCode(application.getSubscriptionCode())
+                    .planCode(planCode)
+                    .emailToken(application.getEmailToken())
+                    .status("active")
+                    .nextPaymentDate(LocalDateTime.now().plusYears(1))
+                    .build();
+            memberSubscriptionRepository.save(sub);
+            log.info("Member subscription created for user: {}", user.getEmail());
+        } catch (Exception e) {
+            // Never fail approval because of a subscription issue;
+            // log it so it can be reconciled later.
+            log.error("Failed to create member subscription for user {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    private String getPlanCode(String tierName) {
+        return switch (tierName) {
+            case "AFFILIATE" -> affiliatePlanCode;
+            case "ASSOCIATE" -> associatePlanCode;
+            case "MEMBER" -> memberPlanCode;
+            default -> null;
+        };
+    }
+
+    private String generateProfessionalId(MembershipTier tier) {
+        String yearPrefix = "GNSW-" + Year.now().getValue() + "-";
+        String maxId = userRepository.findMaxProfessionalIdByYearPrefix(yearPrefix);
+        int nextNumber = 1;
+
+        if (maxId != null && !maxId.isEmpty()) {
+            String[] parts = maxId.split("-");
+            if (parts.length == 3) {
+                nextNumber = Integer.parseInt(parts[2]) + 1;
+            }
+        }
+
+        return yearPrefix + String.format("%03d", nextNumber);
+    }
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:20px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#111418;padding:30px 40px;text-align:center;">
+              <h1 style="color:#ffffff;font-size:24px;margin:0;font-family:Georgia,'Times New Roman',serif;">GNSW</h1>
+              <p style="color:#d86d70;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Guild of Nigerian Speechwriters</p>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px;">
+              <h2 style="color:#111418;font-size:20px;margin:0 0 8px;">Verify Your Email Address</h2>
+              <p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 24px;">
+                Thank you for applying to the Guild of Nigerian Speechwriters. Use the code below to verify your email address and continue with your application.
+              </p>
+              <!-- OTP Code -->
+              <div style="background-color:#f8f8f8;border:2px dashed #d86d70;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px;">
+                <p style="color:#666;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">Your Verification Code</p>
+                <p style="font-size:36px;font-weight:bold;color:#111418;margin:0;letter-spacing:8px;" th:text="${otpCode}">123456</p>
+              </div>
+              <p style="color:#999;font-size:12px;line-height:1.5;margin:0;">
+                This code expires in <strong>10 minutes</strong>. If you didn't request this, please ignore this email.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8f8f8;padding:20px 40px;text-align:center;border-top:1px solid #eee;">
+              <p style="color:#999;font-size:11px;margin:0;">&copy; 2026 Guild of Nigerian Speechwriters. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
