@@ -21,13 +21,10 @@ public class CorsConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:5175",
-                memberPortalUrl,
-                adminUrl
-        ));
+        // Allow all origins for the temporary Railway host.
+        // allowedOriginPatterns("*") works together with allowCredentials(true),
+        // unlike setAllowedOrigins(List.of("*")) which Spring rejects with credentials.
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
