@@ -61,9 +61,9 @@ paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:}
   public-key: ${PAYSTACK_PUBLIC_KEY:}
   plans:
-    affiliate: ${PAYSTACK_PLAN_AFFILIATE:}
-    associate: ${PAYSTACK_PLAN_ASSOCIATE:}
-    member: ${PAYSTACK_PLAN_MEMBER:}
+    affiliate: ${PAYSTACK_PLAN_AFFILIATE:PLN_1byzk8lwws9isbf}
+    associate: ${PAYSTACK_PLAN_ASSOCIATE:PLN_39yqfw5hesewf23}
+    member: ${PAYSTACK_PLAN_MEMBER:PLN_qogwva8tmxbyf4d}
 
 # Logging
 logging:
