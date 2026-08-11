@@ -58,6 +58,11 @@ app:
   frontend:
     member-portal-url: ${MEMBER_PORTAL_URL:http://localhost:5175}
     admin-url: ${ADMIN_URL:http://localhost:5174}
+  mail:
+    # Brevo REST API (not SMTP — Railway blocks outbound SMTP on free/hobby plans)
+    brevo-api-key: ${BREVO_API_KEY:}
+    sender-email: ${MAIL_SENDER_EMAIL:}
+    sender-name: ${MAIL_SENDER_NAME:GNSW}
 
 # Paystack Configuration
 paystack:

@@ -1,29 +1,47 @@
 package com.gnsw.gnsw_backend.service;
 
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EmailService {
 
-    private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
 
-    @Value("${spring.mail.username}")
+    // Railway blocks outbound SMTP on free/hobby plans, so we send via
+    // Brevo's HTTPS REST API (port 443) which is NOT blocked.
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${app.mail.brevo-api-key:}")
+    private String brevoApiKey;
+
+    @Value("${app.mail.sender-email:}")
     private String fromEmail;
+
+    @Value("${app.mail.sender-name:GNSW}")
+    private String fromName;
 
     @Value("${app.frontend.member-portal-url}")
     private String memberPortalUrl;
+
+    public EmailService(TemplateEngine templateEngine) {
+        this.templateEngine = templateEngine;
+    }
 
     @Async
     public void sendOtpEmail(String to, String otpCode) {
@@ -83,19 +101,41 @@ public class EmailService {
     }
 
     /**
-     * NOT async itself — it runs inside the @Async public methods above.
+     * Sends email via Brevo's HTTPS REST API (port 443).
+     * Railway blocks outbound SMTP on free/hobby plans, so SMTP (Gmail/Zoho/Brevo-SMTP)
+     * all time out. The HTTPS API is NOT blocked and works from Railway.
      * Failures are caught and logged so they never propagate to the API caller.
      */
     public void sendHtmlEmail(String to, String subject, String htmlContent) {
+        if (brevoApiKey == null || brevoApiKey.isBlank()) {
+            log.error("BREVO_API_KEY not configured. Cannot send email to {}.", to);
+            return;
+        }
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromEmail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
-            mailSender.send(message);
-            log.info("Email sent to {}: {}", to, subject);
+            Map<String, Object> payload = Map.of(
+                    "sender", Map.of("name", fromName, "email", fromEmail),
+                    "to", List.of(Map.of("email", to)),
+                    "subject", subject,
+                    "htmlContent", htmlContent
+            );
+
+            String json = objectMapper.writeValueAsString(payload);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .header("api-key", brevoApiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("Email sent to {}: {} (Brevo status {})", to, subject, response.statusCode());
+            } else {
+                log.error("Brevo send failed to {}: status {} body {}", to, response.statusCode(), response.body());
+            }
         } catch (Exception e) {
             log.error("Failed to send email to {}: {}", to, e.getMessage());
         }
