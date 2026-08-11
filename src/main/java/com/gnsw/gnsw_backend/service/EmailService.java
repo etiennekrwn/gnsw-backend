@@ -25,11 +25,13 @@ public class EmailService {
     @Value("${app.frontend.member-portal-url}")
     private String memberPortalUrl;
 
+    @Async
     public void sendOtpEmail(String to, String otpCode) {
         sendEmail(to, "Verify Your Email — GNSW Membership Application",
                 "otp-email", "otpCode", otpCode);
     }
 
+    @Async
     public void sendPaymentConfirmation(String to, String tier, String amount) {
         Context context = new Context();
         context.setVariable("tier", tier);
@@ -38,6 +40,7 @@ public class EmailService {
         sendHtmlEmail(to, "Payment Received — GNSW Application Under Review", html);
     }
 
+    @Async
     public void sendApprovalEmail(String to, String firstName, String tier,
                                    String professionalId, String token) {
         Context context = new Context();
@@ -49,6 +52,7 @@ public class EmailService {
         sendHtmlEmail(to, "Welcome to the Guild of Nigerian Speechwriters! 🎉", html);
     }
 
+    @Async
     public void sendRejectionEmail(String to, String firstName, String reason) {
         Context context = new Context();
         context.setVariable("firstName", firstName);
@@ -57,6 +61,7 @@ public class EmailService {
         sendHtmlEmail(to, "Update on Your GNSW Membership Application", html);
     }
 
+    @Async
     public void sendPasswordSetConfirmation(String to, String username) {
         Context context = new Context();
         context.setVariable("username", username);
@@ -77,7 +82,10 @@ public class EmailService {
         }
     }
 
-    @Async
+    /**
+     * NOT async itself — it runs inside the @Async public methods above.
+     * Failures are caught and logged so they never propagate to the API caller.
+     */
     public void sendHtmlEmail(String to, String subject, String htmlContent) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
