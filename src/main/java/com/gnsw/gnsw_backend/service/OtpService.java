@@ -1,4 +1,4 @@
-package com.gnsw.gnsw_backend.service;
+[package com.gnsw.gnsw_backend.service;
 
 import com.gnsw.gnsw_backend.entity.EmailOtp;
 import com.gnsw.gnsw_backend.repository.EmailOtpRepository;
