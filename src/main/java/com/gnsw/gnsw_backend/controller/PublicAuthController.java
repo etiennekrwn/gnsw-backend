@@ -29,6 +29,18 @@ public class PublicAuthController {
                         .build());
     }
 
+    @GetMapping("/set-password/validate")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> validateSetPasswordToken(
+            @RequestParam String token) {
+        Map<String, Object> result = authService.validateSetPasswordToken(token);
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success((Boolean) result.get("valid"))
+                        .message((String) result.get("message"))
+                        .data(result)
+                        .build());
+    }
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> login(
             @Valid @RequestBody LoginRequest request) {

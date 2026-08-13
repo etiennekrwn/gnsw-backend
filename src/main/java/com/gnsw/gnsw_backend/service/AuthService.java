@@ -62,6 +62,64 @@ public class AuthService {
         emailService.sendPasswordSetConfirmation(user.getEmail(), user.getUsername());
     }
 
+    /**
+     * Validates a password-set token WITHOUT consuming it.
+     * Used by the member portal to decide whether the activation form
+     * should be shown at all.
+     *
+     * Statuses:
+     *  - VALID:   token exists, not expired, password not yet set — form may be shown
+     *  - USED:    password was already set — link is permanently dead, direct to login
+     *  - EXPIRED: token past its expiry — link is dead, require a new one
+     *  - INVALID: no matching token — link is dead
+     */
+    public Map<String, Object> validateSetPasswordToken(String token) {
+        if (token == null || token.isBlank()) {
+            return Map.of(
+                    "valid", false,
+                    "status", "INVALID",
+                    "message", "Invalid or missing activation token."
+            );
+        }
+
+        User user = userRepository.findByPasswordSetToken(token).orElse(null);
+        if (user == null) {
+            return Map.of(
+                    "valid", false,
+                    "status", "INVALID",
+                    "message", "This activation link is not valid. Please contact the GNSW admin for assistance."
+            );
+        }
+
+        // Password already set — the link is permanently used up.
+        if (user.getPasswordSetAt() != null || user.getPasswordHash() != null) {
+            return Map.of(
+                    "valid", false,
+                    "status", "USED",
+                    "email", user.getEmail(),
+                    "message", "This activation link has already been used. You can log in directly."
+            );
+        }
+
+        // Token expired — still usable if never set, but needs a fresh link from admin.
+        if (user.getPasswordSetTokenExpiresAt() == null ||
+                user.getPasswordSetTokenExpiresAt().isBefore(LocalDateTime.now())) {
+            return Map.of(
+                    "valid", false,
+                    "status", "EXPIRED",
+                    "email", user.getEmail(),
+                    "message", "This activation link has expired. Please contact the GNSW admin for a new link."
+            );
+        }
+
+        return Map.of(
+                "valid", true,
+                "status", "VALID",
+                "email", user.getEmail() != null ? user.getEmail() : "",
+                "message", "Token is valid."
+        );
+    }
+
     public Map<String, Object> login(LoginRequest request) {
         // Try to find user by username first, then by email
         User user = userRepository.findByUsername(request.getUsername())
