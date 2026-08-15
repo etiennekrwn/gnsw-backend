@@ -88,6 +88,15 @@ public class EmailService {
         sendHtmlEmail(to, "Your GNSW Account is Now Active", html);
     }
 
+    @Async
+    public void sendPasswordResetEmail(String to, String firstName, String token) {
+        Context context = new Context();
+        context.setVariable("firstName", firstName);
+        context.setVariable("resetUrl", memberPortalUrl + "/reset-password?token=" + token);
+        String html = templateEngine.process("reset-password", context);
+        sendHtmlEmail(to, "Reset Your GNSW Password", html);
+    }
+
     private void sendEmail(String to, String subject, String template,
                             String variableName, String variableValue) {
         try {

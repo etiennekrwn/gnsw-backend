@@ -5,6 +5,10 @@ import com.gnsw.gnsw_backend.dto.request.SetPasswordRequest;
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.service.AuthService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -51,5 +55,66 @@ public class PublicAuthController {
                         .message("Login successful.")
                         .data(result)
                         .build());
+    }
+
+    @PostMapping("/resend-activation")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> resendActivation(
+            @Valid @RequestBody ResendActivationRequest request) {
+        Map<String, Object> result = authService.resendActivationLink(request.getEmail());
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message((String) result.get("message"))
+                        .data(result)
+                        .build());
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Void>builder()
+                        .success(true)
+                        .message("If an account exists for that email, a password reset link has been sent.")
+                        .build());
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getToken(), request.getPassword(), request.getPasswordConfirmation());
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Void>builder()
+                        .success(true)
+                        .message("Password reset successfully. You can now log in.")
+                        .build());
+    }
+
+    @Data
+    public static class ResendActivationRequest {
+        @NotBlank(message = "Email is required")
+        @Email(message = "Please provide a valid email address")
+        private String email;
+    }
+
+    @Data
+    public static class ForgotPasswordRequest {
+        @NotBlank(message = "Email is required")
+        @Email(message = "Please provide a valid email address")
+        private String email;
+    }
+
+    @Data
+    public static class ResetPasswordRequest {
+        @NotBlank(message = "Token is required")
+        private String token;
+
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, message = "Password must be at least 8 characters")
+        private String password;
+
+        @NotBlank(message = "Password confirmation is required")
+        private String passwordConfirmation;
     }
 }

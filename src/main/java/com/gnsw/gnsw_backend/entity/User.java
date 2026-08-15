@@ -90,6 +90,15 @@ public class User {
     @Column(name = "password_set_at")
     private LocalDateTime passwordSetAt;
 
+    @Column(name = "password_reset_token")
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_token_expires_at")
+    private LocalDateTime passwordResetTokenExpiresAt;
+
+    @Column(name = "activation_reminder_count")
+    private Integer activationReminderCount;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 

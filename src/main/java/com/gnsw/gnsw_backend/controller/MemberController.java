@@ -67,6 +67,39 @@ public class MemberController {
                         .build());
     }
 
+    @PostMapping("/onboarding/photo")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> uploadOnboardingPhoto(
+            @Valid @RequestBody OnboardingPhotoRequest request,
+            Authentication authentication) {
+        String username = authentication.getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        Member member = memberRepository.findByUserId(user.getId())
+                .orElseGet(() -> {
+                    Member newMember = Member.builder()
+                            .userId(user.getId())
+                            .build();
+                    return memberRepository.save(newMember);
+                });
+
+        member.setProfileImageUrl(request.getProfileImage());
+        memberRepository.save(member);
+
+        Map<String, Object> result = Map.of(
+                "profileImageUrl", member.getProfileImageUrl(),
+                "onboardingCompleted", true
+        );
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Profile photo saved successfully.")
+                        .data(result)
+                        .build());
+    }
+
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<Map<String, Object>>> updateProfile(
             @Valid @RequestBody UpdateProfileRequest request,
@@ -137,6 +170,13 @@ public class MemberController {
                         .message("Profile updated successfully.")
                         .data(profile)
                         .build());
+    }
+
+    @Data
+    public static class OnboardingPhotoRequest {
+        @jakarta.validation.constraints.NotBlank(message = "Profile image is required")
+        @Size(max = 5000000, message = "Image data must not exceed 5MB")
+        private String profileImage;
     }
 
     @Data
