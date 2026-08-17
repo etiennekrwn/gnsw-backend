@@ -151,9 +151,7 @@ public class NewPublicController {
         @NotBlank private String country;
         private String phone;
         // Professional fields — collected during application
-        @NotBlank(message = "LinkedIn profile is required")
         private String linkedInProfile;
-        @NotBlank(message = "At least one social link or website is required")
         private String socials;
         @NotBlank(message = "A professional bio is required")
         private String bio;
