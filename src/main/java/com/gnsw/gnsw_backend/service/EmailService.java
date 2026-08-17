@@ -60,12 +60,14 @@ public class EmailService {
 
     @Async
     public void sendApprovalEmail(String to, String firstName, String tier,
-                                   String professionalId, String token) {
+                                   String professionalId, String token,
+                                   String customMessage) {
         Context context = new Context();
         context.setVariable("firstName", firstName);
         context.setVariable("tier", tier);
         context.setVariable("professionalId", professionalId);
         context.setVariable("setPasswordUrl", memberPortalUrl + "/set-password?token=" + token + "&email=" + to);
+        context.setVariable("customMessage", customMessage);
         String html = templateEngine.process("approval-email", context);
         sendHtmlEmail(to, "Welcome to the Guild of Nigerian Speechwriters! 🎉", html);
     }

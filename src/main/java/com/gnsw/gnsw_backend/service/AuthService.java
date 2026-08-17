@@ -174,7 +174,7 @@ public class AuthService {
                 try {
                     emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(),
                             user.getTier() != null ? user.getTier().name() : "MEMBER",
-                            user.getProfessionalId(), token);
+                            user.getProfessionalId(), token, null);
                 } catch (Exception e) {
                     // Email failure should never expose whether an account exists.
                 }

@@ -2,6 +2,7 @@ package com.gnsw.gnsw_backend.service;
 
 import com.gnsw.gnsw_backend.entity.EmailOtp;
 import com.gnsw.gnsw_backend.repository.EmailOtpRepository;
+import com.gnsw.gnsw_backend.util.EmailUtil;
 import com.gnsw.gnsw_backend.util.OtpGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,22 +20,24 @@ public class OtpService {
     private static final int MAX_ATTEMPTS = 5;
 
     public void generateAndSendOtp(String email) {
+        String normalized = EmailUtil.normalize(email);
         String code = OtpGenerator.generateOtp();
 
         EmailOtp otp = EmailOtp.builder()
-                .email(email)
+                .email(normalized)
                 .otpCode(code)
                 .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
                 .attempts(0)
                 .build();
 
         emailOtpRepository.save(otp);
-        emailService.sendOtpEmail(email, code);
+        emailService.sendOtpEmail(normalized, code);
     }
 
     public void verifyOtp(String email, String code) {
+        String normalized = EmailUtil.normalize(email);
         EmailOtp otp = emailOtpRepository
-                .findTopByEmailAndVerifiedAtIsNullOrderByCreatedAtDesc(email)
+                .findTopByEmailAndVerifiedAtIsNullOrderByCreatedAtDesc(normalized)
                 .orElseThrow(() -> new IllegalArgumentException("No OTP found for this email. Please request a new one."));
 
         if (otp.getVerifiedAt() != null) {

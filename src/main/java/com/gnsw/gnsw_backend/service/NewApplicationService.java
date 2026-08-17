@@ -9,14 +9,17 @@ import com.gnsw.gnsw_backend.enums.ApplicationStatus;
 import com.gnsw.gnsw_backend.enums.MembershipTier;
 import com.gnsw.gnsw_backend.enums.PaymentStatus;
 import com.gnsw.gnsw_backend.enums.UserStatus;
+import com.gnsw.gnsw_backend.event.ApplicationApprovedEvent;
 import com.gnsw.gnsw_backend.repository.ApplicationRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
 import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
 import com.gnsw.gnsw_backend.repository.PaymentRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
+import com.gnsw.gnsw_backend.util.EmailUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -39,6 +43,7 @@ public class NewApplicationService {
     private final MemberSubscriptionRepository memberSubscriptionRepository;
     private final EmailService emailService;
     private final PaymentService paymentService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${paystack.plans.affiliate}")
     private String affiliatePlanCode;
@@ -54,10 +59,11 @@ public class NewApplicationService {
      * Throws IllegalArgumentException if the email already has an application or user account.
      */
     public void checkEmailAvailable(String email) {
-        if (applicationRepository.findByEmail(email).isPresent()) {
+        Optional<Application> existing = applicationRepository.findByEmail(EmailUtil.normalize(email));
+        if (existing.isPresent() && existing.get().getStatus() != ApplicationStatus.REJECTED) {
             throw new IllegalArgumentException("An application with this email already exists.");
         }
-        if (userRepository.findByEmail(email).isPresent()) {
+        if (userRepository.findByEmail(EmailUtil.normalize(email)).isPresent()) {
             throw new IllegalArgumentException("An account with this email already exists.");
         }
     }
@@ -77,8 +83,11 @@ public class NewApplicationService {
                                           String sectors, String speechTypes, String languages,
                                           String membershipTier,
                                           String paymentReference, int paymentAmount) {
-        // Check if email already has an application
-        if (applicationRepository.findByEmail(email).isPresent()) {
+        // Check if email already has an application (REJECTED ones may be reused).
+        String normalizedEmail = EmailUtil.normalize(email);
+        Optional<Application> existing = applicationRepository.findByEmail(normalizedEmail);
+        boolean reapply = existing.isPresent() && existing.get().getStatus() == ApplicationStatus.REJECTED;
+        if (existing.isPresent() && !reapply) {
             throw new IllegalArgumentException("An application with this email already exists.");
         }
 
@@ -95,31 +104,37 @@ public class NewApplicationService {
 
         MembershipTier tier = MembershipTier.valueOf(membershipTier);
 
-        Application application = Application.builder()
-                .firstName(firstName)
-                .lastName(lastName)
-                .email(email)
-                .addressLine1(addressLine1)
-                .addressLine2(addressLine2)
-                .city(city)
-                .stateProvince(stateProvince)
-                .zipPostalCode(zipPostalCode)
-                .country(country)
-                .phone(phone)
-                .linkedInProfile(linkedInProfile)
-                .socials(socials)
-                .bio(bio)
-                .reasonForJoining(reasonForJoining)
-                .sectors(sectors)
-                .speechTypes(speechTypes)
-                .languages(languages)
-                .membershipTier(tier)
-                .status(ApplicationStatus.PENDING)
-                .paymentReference(paymentReference)
-                .paymentAmount(paymentAmount)
-                .paymentStatus("SUCCESS")
-                .emailVerified(true)
-                .build();
+        Application application = reapply ? existing.get() : new Application();
+        application.setFirstName(firstName);
+        application.setLastName(lastName);
+        application.setEmail(normalizedEmail);
+        application.setAddressLine1(addressLine1);
+        application.setAddressLine2(addressLine2);
+        application.setCity(city);
+        application.setStateProvince(stateProvince);
+        application.setZipPostalCode(zipPostalCode);
+        application.setCountry(country);
+        application.setPhone(phone);
+        application.setLinkedInProfile(linkedInProfile);
+        application.setSocials(socials);
+        application.setBio(bio);
+        application.setReasonForJoining(reasonForJoining);
+        application.setSectors(sectors);
+        application.setSpeechTypes(speechTypes);
+        application.setLanguages(languages);
+        application.setMembershipTier(tier);
+        application.setStatus(ApplicationStatus.PENDING);
+        application.setPaymentReference(paymentReference);
+        application.setPaymentAmount(paymentAmount);
+        application.setPaymentStatus("SUCCESS");
+        application.setEmailVerified(true);
+        // Reset review state - this may be a re-application (REJECTED -> PENDING).
+        application.setReviewedAt(null);
+        application.setReviewedBy(null);
+        application.setRejectionReason(null);
+        application.setSubscriptionCode(null);
+        application.setPlanCode(null);
+        application.setEmailToken(null);
 
         application = applicationRepository.save(application);
 
@@ -162,13 +177,21 @@ public class NewApplicationService {
      */
     @Transactional
     public String approveApplication(UUID applicationId, UUID adminId, String customMessage) {
-        Application application = applicationRepository.findById(applicationId)
+        Application application = applicationRepository.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found."));
 
         if (application.getStatus() != ApplicationStatus.PENDING) {
             throw new IllegalArgumentException("Application is not in PENDING status.");
         }
 
+        // Guard against approving an application whose email already belongs to a
+        // user (e.g. a manually-created member). Fail fast instead of a 500.
+        if (userRepository.findByEmail(application.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("A user account with this email already exists. Application cannot be approved.");
+        }
+
+        // Serialize professional-ID allocation across concurrent approvals.
+        userRepository.lockProfessionalIdSequence();
         // Generate professional ID
         String professionalId = generateProfessionalId(application.getMembershipTier());
 
@@ -202,6 +225,7 @@ public class NewApplicationService {
         // Create Member record — copy professional fields from the application
         Member member = Member.builder()
                 .userId(user.getId())
+                .phone(application.getPhone())
                 .bio(application.getBio())
                 .sectors(application.getSectors())
                 .speechTypes(application.getSpeechTypes())
@@ -223,23 +247,22 @@ public class NewApplicationService {
         application.setReviewedBy(adminId);
         applicationRepository.save(application);
 
-        // Send approval email OUTSIDE the transaction to prevent rollback on email failure
-        sendApprovalEmailAsync(application, user, professionalId, token);
+        // Publish an AFTER_COMMIT event so the welcome email is only sent once
+        // this transaction has successfully committed (never before, never on rollback).
+        publishApprovalEvent(application, user, professionalId, token, customMessage);
 
         return professionalId;
     }
 
     /**
-     * Send approval email asynchronously. Runs after the transaction commits.
-     * Email failures are logged but do NOT affect the approval transaction.
+     * Publishes an AFTER_COMMIT approval event. The welcome email is sent by
+     * ApplicationApprovalListener only after the approval transaction commits.
      */
-    private void sendApprovalEmailAsync(Application application, User user, String professionalId, String token) {
-        try {
-            emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(),
-                    application.getMembershipTier().name(), professionalId, token);
-        } catch (Exception e) {
-            log.error("Failed to send approval email to {}: {}", user.getEmail(), e.getMessage());
-        }
+    private void publishApprovalEvent(Application application, User user, String professionalId, String token, String customMessage) {
+        applicationEventPublisher.publishEvent(new ApplicationApprovedEvent(
+                user.getEmail(), user.getFirstName(),
+                application.getMembershipTier().name(),
+                professionalId, token, customMessage));
     }
 
     /**
@@ -247,7 +270,7 @@ public class NewApplicationService {
      */
     @Transactional
     public void rejectApplication(UUID applicationId, UUID adminId, String reason) {
-        Application application = applicationRepository.findById(applicationId)
+        Application application = applicationRepository.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found."));
 
         if (application.getStatus() != ApplicationStatus.PENDING) {

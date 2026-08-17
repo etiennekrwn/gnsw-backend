@@ -35,4 +35,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT COALESCE(MAX(u.professionalId), 'GNSW-0000-000') FROM User u WHERE u.professionalId LIKE ?1%")
     String findMaxProfessionalIdByYearPrefix(String yearPrefix);
+
+    /**
+     * Serializes professional-ID allocation across concurrent requests using a
+     * Postgres advisory (transaction-scoped) lock. The lock is held until the
+     * surrounding transaction commits or rolls back.
+     */
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext('gnsw_professional_id_seq'))", nativeQuery = true)
+    void lockProfessionalIdSequence();
 }

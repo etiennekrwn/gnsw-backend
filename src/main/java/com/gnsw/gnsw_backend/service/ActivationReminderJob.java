@@ -58,7 +58,8 @@ public class ActivationReminderJob {
                         user.getFirstName(),
                         user.getTier() != null ? user.getTier().name() : "MEMBER",
                         user.getProfessionalId(),
-                        token);
+                        token,
+                        null);
                 sent++;
             } catch (Exception e) {
                 log.error("Failed to send activation reminder to {}: {}",

@@ -50,7 +50,12 @@ public class NewAdminController {
         if ("ALL".equalsIgnoreCase(status)) {
             applications = newApplicationService.getAllApplications(PageRequest.of(page, size));
         } else {
-            ApplicationStatus appStatus = ApplicationStatus.valueOf(status.toUpperCase());
+            ApplicationStatus appStatus;
+            try {
+                appStatus = ApplicationStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid status filter: " + status);
+            }
             applications = newApplicationService.getApplications(appStatus, PageRequest.of(page, size));
         }
         return ResponseEntity.ok()
@@ -162,12 +167,16 @@ public class NewAdminController {
             Authentication authentication) {
         UUID adminId = getAdminId(authentication);
 
-        // Check email not already used
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+        // Check email not already used (case-insensitive)
+        String email = com.gnsw.gnsw_backend.util.EmailUtil.normalize(request.getEmail());
+        if (userRepository.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("A user with this email already exists.");
         }
 
         MembershipTier tier = MembershipTier.valueOf(request.getTier().toUpperCase());
+
+        // Serialize professional-ID allocation across concurrent requests.
+        userRepository.lockProfessionalIdSequence();
 
         // Generate professional ID
         String professionalId = generateProfessionalId(tier);
@@ -176,7 +185,7 @@ public class NewAdminController {
         User user = User.builder()
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
-                .email(request.getEmail())
+                .email(email)
                 .addressLine1(request.getAddressLine1() != null ? request.getAddressLine1() : "")
                 .addressLine2(request.getAddressLine2())
                 .city(request.getCity() != null ? request.getCity() : "")
@@ -210,7 +219,7 @@ public class NewAdminController {
 
         // Send welcome email with password-set link
         try {
-            emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(), tier.name(), professionalId, token);
+            emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(), tier.name(), professionalId, token, null);
         } catch (Exception e) {
             // Log but don't fail member creation
             System.err.println("Failed to send welcome email: " + e.getMessage());

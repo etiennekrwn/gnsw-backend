@@ -25,6 +25,9 @@
               <p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 16px;">
                 Congratulations! We are pleased to inform you that your application for <strong th:text="${tier}">Associate</strong> membership has been <strong style="color:#1a8a3f;">approved</strong>.
               </p>
+              <p th:if="${customMessage != null and !customMessage.isEmpty()}" style="color:#111418;font-size:14px;line-height:1.6;margin:0 0 16px;background-color:#fdf2f3;border-left:3px solid #8b1e21;padding:10px 14px;">
+                <strong>Message from the Guild:</strong> <span th:text="${customMessage}"></span>
+              </p>
               <div style="background-color:#f8f8f8;border-radius:8px;padding:20px;margin-bottom:24px;text-align:center;">
                 <p style="color:#999;font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px;">Your Professional ID</p>
                 <p style="font-size:24px;font-weight:bold;color:#111418;margin:0;letter-spacing:2px;" th:text="${professionalId}">GNSW-2026-001</p>

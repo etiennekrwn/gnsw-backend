@@ -3,6 +3,7 @@ package com.gnsw.gnsw_backend.controller;
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.service.NewApplicationService;
 import com.gnsw.gnsw_backend.service.OtpService;
+import com.gnsw.gnsw_backend.util.EmailUtil;
 import com.gnsw.gnsw_backend.util.PaymentReferenceGenerator;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -36,14 +37,15 @@ public class NewPublicController {
      */
     @PostMapping("/send-otp")
     public ResponseEntity<ApiResponse<Map<String, Object>>> sendOtp(@Valid @RequestBody SendOtpRequest request) {
+        String email = EmailUtil.normalize(request.getEmail());
         // Check if email already has an application or user account
-        newApplicationService.checkEmailAvailable(request.getEmail());
-        otpService.generateAndSendOtp(request.getEmail());
+        newApplicationService.checkEmailAvailable(email);
+        otpService.generateAndSendOtp(email);
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
                         .message("OTP sent to your email.")
-                        .data(Map.of("email", request.getEmail()))
+                        .data(Map.of("email", email))
                         .build());
     }
 
@@ -52,7 +54,11 @@ public class NewPublicController {
      */
     @PostMapping("/verify-otp")
     public ResponseEntity<ApiResponse<Map<String, Object>>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
-        otpService.verifyOtp(request.getEmail(), request.getOtpCode());
+        String email = EmailUtil.normalize(request.getEmail());
+        // Re-check availability: the email may have become unavailable (an
+        // application or account may have been created) on the OTP step.
+        newApplicationService.checkEmailAvailable(email);
+        otpService.verifyOtp(email, request.getOtpCode());
 
         String paymentRef = PaymentReferenceGenerator.generateReference();
 
@@ -69,7 +75,7 @@ public class NewPublicController {
                         .success(true)
                         .message("Email verified successfully. Proceed to payment.")
                         .data(Map.of(
-                                "email", request.getEmail(),
+                                "email", email,
                                 "tier", request.getMembershipTier(),
                                 "amount", amount,
                                 "paymentReference", paymentRef

@@ -26,15 +26,9 @@ public class GnswBackendApplication {
 		return args -> {
 			var existingAdmin = userRepository.findByEmail("admin@gnsw.ng");
 			if (existingAdmin.isPresent()) {
-				User admin = existingAdmin.get();
-				admin.setPasswordHash(passwordEncoder.encode("Admin@12345"));
-				admin.setUsername("admin");
-				admin.setRole("ROLE_ADMIN");
-				admin.setStatus(UserStatus.ACCEPTED);
-				admin.setTier(MembershipTier.FELLOW);
-				admin.setEmailVerifiedAt(java.time.LocalDateTime.now());
-				userRepository.save(admin);
-				System.out.println("✅ Admin password updated: admin / Admin@12345");
+				// Do NOT reset the password on startup: a changed admin
+				// password must survive restarts.
+				System.out.println("✅ Admin user already exists. Skipping password reset.");
 			} else {
 				User admin = User.builder()
 						.email("admin@gnsw.ng")
