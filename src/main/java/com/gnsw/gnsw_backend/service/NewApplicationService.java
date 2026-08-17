@@ -180,8 +180,11 @@ public class NewApplicationService {
         Application application = applicationRepository.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found."));
 
-        if (application.getStatus() != ApplicationStatus.PENDING) {
-            throw new IllegalArgumentException("Application is not in PENDING status.");
+        if (application.getStatus() == ApplicationStatus.APPROVED) {
+            throw new IllegalArgumentException("This application has already been approved.");
+        }
+        if (application.getStatus() == ApplicationStatus.REJECTED) {
+            throw new IllegalArgumentException("This application has been rejected and cannot be approved.");
         }
 
         // Guard against approving an application whose email already belongs to a
@@ -273,8 +276,11 @@ public class NewApplicationService {
         Application application = applicationRepository.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found."));
 
-        if (application.getStatus() != ApplicationStatus.PENDING) {
-            throw new IllegalArgumentException("Application is not in PENDING status.");
+        if (application.getStatus() == ApplicationStatus.REJECTED) {
+            throw new IllegalArgumentException("This application has already been rejected.");
+        }
+        if (application.getStatus() == ApplicationStatus.APPROVED) {
+            throw new IllegalArgumentException("This application has already been approved and cannot be rejected.");
         }
 
         application.setStatus(ApplicationStatus.REJECTED);
