@@ -114,6 +114,9 @@ public class User {
         updatedAt = LocalDateTime.now();
         if (status == null) status = UserStatus.PENDING;
         if (role == null) role = "ROLE_MEMBER";
+        // The column is NOT NULL (migration V7); Hibernate includes it in the
+        // INSERT, so we must default it or the persist fails with a 23502.
+        if (activationReminderCount == null) activationReminderCount = 0;
     }
 
     @PreUpdate
