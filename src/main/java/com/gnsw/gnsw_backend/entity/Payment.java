@@ -39,6 +39,15 @@ public class Payment {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Column(name = "refund_status")
+    private String refundStatus;
+
+    @Column(name = "refund_reference")
+    private String refundReference;
+
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

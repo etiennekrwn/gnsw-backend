@@ -94,9 +94,10 @@ public class NewApplicationService {
         // Verify the payment with Paystack before creating the application.
         // Skip verification for demo/test references (e.g. DEMO-REF-*) so the
         // application + payment record can be created without a real Paystack charge.
+        String authorizationCode = null;
         if (!paymentReference.startsWith("DEMO-")) {
             try {
-                paymentService.verifyPaymentByReference(paymentReference, paymentAmount);
+                authorizationCode = paymentService.verifyPaymentByReference(paymentReference, paymentAmount);
             } catch (Exception e) {
                 throw new RuntimeException("Payment verification failed: " + e.getMessage());
             }
@@ -128,6 +129,7 @@ public class NewApplicationService {
         application.setPaymentAmount(paymentAmount);
         application.setPaymentStatus("SUCCESS");
         application.setEmailVerified(true);
+        application.setAuthorizationCode(authorizationCode);
         // Reset review state - this may be a re-application (REJECTED -> PENDING).
         application.setReviewedAt(null);
         application.setReviewedBy(null);
@@ -239,15 +241,51 @@ public class NewApplicationService {
                 .build();
         memberRepository.save(member);
 
-        // Create the MemberSubscription row. The subscription code/plan may have been
-        // captured on the application by the Paystack webhook (subscription.create);
-        // fall back to the configured plan code if the webhook hadn't arrived yet.
-        createMemberSubscription(user, application);
+        // Deferred subscription billing: the applicant paid a one-off fee at checkout.
+        // The Paystack subscription is created NOW so the first renewal lands one year
+        // after approval (the annual cycle starts counting from approval, unlimited
+        // renewals). Legacy in-flight subscriptions created by the old plan-at-checkout
+        // flow are cancelled first so their cycle is re-anchored to approval.
+        LocalDateTime startDate = LocalDateTime.now().plusYears(1);
+        String subscriptionCode = null;
+        String planCode = null;
+        String emailToken = application.getEmailToken();
+        String authorizationCode = application.getAuthorizationCode();
+
+        if (authorizationCode != null && !authorizationCode.isBlank()) {
+            String legacyCode = application.getSubscriptionCode();
+            if (legacyCode != null && !legacyCode.isBlank()) {
+                try {
+                    paymentService.cancelSubscription(legacyCode);
+                } catch (Exception e) {
+                    log.error("Failed to cancel legacy subscription {}: {}", legacyCode, e.getMessage());
+                }
+            }
+            try {
+                var sub = paymentService.createSubscription(
+                        application.getEmail(),
+                        application.getMembershipTier().name(),
+                        authorizationCode,
+                        startDate);
+                subscriptionCode = sub.subscriptionCode();
+                planCode = sub.planCode();
+                startDate = sub.nextPaymentDate();
+            } catch (Exception e) {
+                // Never fail approval because of a subscription issue; log it so it
+                // can be reconciled later.
+                log.error("Failed to create Paystack subscription for {}: {}",
+                        application.getEmail(), e.getMessage());
+            }
+        }
+
+        createMemberSubscription(user, application, subscriptionCode, planCode, emailToken, startDate);
 
         // Update application status
         application.setStatus(ApplicationStatus.APPROVED);
         application.setReviewedAt(LocalDateTime.now());
         application.setReviewedBy(adminId);
+        application.setSubscriptionCode(subscriptionCode);
+        application.setPlanCode(planCode);
         applicationRepository.save(application);
 
         // Publish an AFTER_COMMIT event so the welcome email is only sent once
@@ -287,6 +325,22 @@ public class NewApplicationService {
         application.setReviewedAt(LocalDateTime.now());
         application.setReviewedBy(adminId);
         application.setRejectionReason(reason);
+
+        // A legacy (plan-at-checkout) subscription must be cancelled so a rejected
+        // applicant is never charged next year. New-flow applicants have no
+        // subscription yet, so there is nothing to cancel.
+        String legacySubscriptionCode = application.getSubscriptionCode();
+        if (legacySubscriptionCode != null && !legacySubscriptionCode.isBlank()) {
+            try {
+                paymentService.cancelSubscription(legacySubscriptionCode);
+                log.info("Cancelled subscription {} for rejected application {}",
+                        legacySubscriptionCode, application.getEmail());
+            } catch (Exception e) {
+                log.error("Failed to cancel subscription {} on rejection: {}",
+                        legacySubscriptionCode, e.getMessage());
+            }
+        }
+
         applicationRepository.save(application);
 
         // Send rejection email outside transaction to prevent rollback on email failure
@@ -327,7 +381,9 @@ public class NewApplicationService {
      * Uses the subscription captured by the Paystack webhook (subscription.create)
      * when available; otherwise synthesizes it from the configured plan code.
      */
-    private void createMemberSubscription(User user, Application application) {
+    private void createMemberSubscription(User user, Application application,
+                                          String subscriptionCode, String planCode,
+                                          String emailToken, LocalDateTime nextPaymentDate) {
         try {
             boolean exists = memberSubscriptionRepository.findByUserId(user.getId()).isPresent();
             if (exists) {
@@ -335,18 +391,17 @@ public class NewApplicationService {
                 return;
             }
 
-            String planCode = application.getPlanCode();
             if (planCode == null || planCode.isBlank() || "UNKNOWN".equals(planCode)) {
                 planCode = getPlanCode(application.getMembershipTier().name());
             }
 
             MemberSubscription sub = MemberSubscription.builder()
                     .userId(user.getId())
-                    .subscriptionCode(application.getSubscriptionCode())
+                    .subscriptionCode(subscriptionCode)
                     .planCode(planCode)
-                    .emailToken(application.getEmailToken())
+                    .emailToken(emailToken)
                     .status("active")
-                    .nextPaymentDate(LocalDateTime.now().plusYears(1))
+                    .nextPaymentDate(nextPaymentDate)
                     .build();
             memberSubscriptionRepository.save(sub);
             log.info("Member subscription created for user: {}", user.getEmail());

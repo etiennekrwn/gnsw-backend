@@ -32,6 +32,15 @@ public class PaymentService {
     @Value("${paystack.secret-key}")
     private String paystackSecretKey;
 
+    @Value("${paystack.plans.affiliate}")
+    private String affiliatePlanCode;
+
+    @Value("${paystack.plans.associate}")
+    private String associatePlanCode;
+
+    @Value("${paystack.plans.member}")
+    private String memberPlanCode;
+
     public Map<String, Object> initializePayment(String applicationId, String email, int amount, String reference) {
         User user = userRepository.findById(UUID.fromString(applicationId))
                 .orElseThrow(() -> new IllegalArgumentException("Application not found."));
@@ -152,7 +161,7 @@ public class PaymentService {
      * Used by NewApplicationService to verify Paystack payments before creating applications.
      * Throws an exception if verification fails or amount doesn't match.
      */
-    public void verifyPaymentByReference(String reference, int expectedAmount) {
+    public String verifyPaymentByReference(String reference, int expectedAmount) {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
@@ -184,7 +193,15 @@ public class PaymentService {
                 throw new IllegalArgumentException("Payment amount mismatch. Expected: " + expectedAmount + ", Got: " + paystackAmount);
             }
 
+            String authorizationCode = null;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> authorization = (Map<String, Object>) data.get("authorization");
+            if (authorization != null) {
+                authorizationCode = (String) authorization.get("authorization_code");
+            }
+
             log.info("Payment verified successfully for reference: {}", reference);
+            return authorizationCode;
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -194,6 +211,127 @@ public class PaymentService {
     }
 
     private final com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository memberSubscriptionRepository;
+
+    public record SubscriptionResult(String subscriptionCode, String planCode, LocalDateTime nextPaymentDate) {
+    }
+
+    /**
+     * Creates the Paystack subscription for a now-approved member (deferred billing).
+     * The applicant already paid the year-1 fee at checkout; this subscription is for
+     * renewals. startDate is set to approval + 1 year so the annual cycle starts
+     * counting from approval, with unlimited annual renewals.
+     */
+    public SubscriptionResult createSubscription(String email, String tierName, String authorizationCode, LocalDateTime startDate) {
+        String planCode = switch (tierName) {
+            case "AFFILIATE" -> affiliatePlanCode;
+            case "ASSOCIATE" -> associatePlanCode;
+            case "MEMBER" -> memberPlanCode;
+            default -> throw new IllegalArgumentException("Invalid tier: " + tierName);
+        };
+
+        if (authorizationCode == null || authorizationCode.isBlank()) {
+            throw new IllegalArgumentException("No card authorization available to create the subscription.");
+        }
+
+        try {
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                    "customer", email,
+                    "plan", planCode,
+                    "authorization", authorizationCode,
+                    "start_date", java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
+                            startDate.atZone(java.time.ZoneOffset.UTC))
+            ));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.paystack.co/subscription"))
+                    .header("Authorization", "Bearer " + paystackSecretKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(response.body(), Map.class);
+
+            if (!Boolean.TRUE.equals(responseBody.get("status")) || response.statusCode() >= 400) {
+                log.error("Paystack subscription creation failed for {}: {}", email, response.body());
+                throw new RuntimeException("Failed to create subscription on Paystack.");
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+            String subscriptionCode = (String) data.get("subscription_code");
+            log.info("Paystack subscription created: {} for {}", subscriptionCode, email);
+            return new SubscriptionResult(subscriptionCode, planCode, startDate);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Paystack subscription creation failed for {}: {}", email, e.getMessage());
+            throw new RuntimeException("Failed to create subscription on Paystack.");
+        }
+    }
+
+    /** Cancels a Paystack subscription so no further charges occur. Best-effort. */
+    public void cancelSubscription(String subscriptionCode) {
+        if (subscriptionCode == null || subscriptionCode.isBlank()) {
+            return;
+        }
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.paystack.co/subscription/" + subscriptionCode))
+                    .header("Authorization", "Bearer " + paystackSecretKey)
+                    .DELETE()
+                    .build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(response.body(), Map.class);
+            if (!Boolean.TRUE.equals(responseBody.get("status"))) {
+                log.warn("Paystack subscription cancel returned failure for {}: {}", subscriptionCode, response.body());
+            } else {
+                log.info("Paystack subscription cancelled: {}", subscriptionCode);
+            }
+        } catch (Exception e) {
+            log.error("Failed to cancel Paystack subscription {}: {}", subscriptionCode, e.getMessage());
+        }
+    }
+
+    /** Initiates a manual refund for a successful payment (async on Paystack's side). */
+    public Map<String, Object> refundTransaction(String reference, int amountKobo) {
+        try {
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
+                    Map.of("transaction", reference, "amount", amountKobo));
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.paystack.co/refund"))
+                    .header("Authorization", "Bearer " + paystackSecretKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(response.body(), Map.class);
+            if (!Boolean.TRUE.equals(responseBody.get("status")) || response.statusCode() >= 400) {
+                log.error("Paystack refund initiation failed for {}: {}", reference, response.body());
+                throw new RuntimeException("Failed to initiate refund on Paystack.");
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+            String refundReference = (String) data.get("reference");
+            Map<String, Object> result = new java.util.HashMap<>();
+            result.put("refundReference", refundReference == null ? "" : refundReference);
+            result.put("status", String.valueOf(data.get("status")));
+            log.info("Paystack refund initiated: {} for transaction {}", refundReference, reference);
+            return result;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Paystack refund initiation failed for {}: {}", reference, e.getMessage());
+            throw new RuntimeException("Failed to initiate refund on Paystack.");
+        }
+    }
 
     public void handleWebhook(String payload, String signature) {
         // Verify HMAC signature
@@ -269,15 +407,24 @@ public class PaymentService {
                 if (user != null) {
                     com.gnsw.gnsw_backend.entity.MemberSubscription sub = memberSubscriptionRepository.findByUserId(user.getId())
                             .orElse(new com.gnsw.gnsw_backend.entity.MemberSubscription());
-                    sub.setUserId(user.getId());
-                    sub.setSubscriptionCode(subscriptionCode);
-                    sub.setPlanCode(planCode);
-                    sub.setEmailToken(emailToken);
-                    sub.setStatus("active");
-                    sub.setNextPaymentDate(LocalDateTime.now().plusYears(1));
+                    // With deferred billing the subscription is created at approval and its
+                    // details are authoritative; never overwrite a different active code.
+                    if (sub.getSubscriptionCode() != null
+                            && !sub.getSubscriptionCode().isBlank()
+                            && !sub.getSubscriptionCode().equals(subscriptionCode)) {
+                        log.info("Subscription {} already recorded for user {}; skipping webhook update.",
+                                sub.getSubscriptionCode(), email);
+                    } else {
+                        sub.setUserId(user.getId());
+                        sub.setSubscriptionCode(subscriptionCode);
+                        sub.setPlanCode(planCode);
+                        sub.setEmailToken(emailToken);
+                        sub.setStatus("active");
+                        sub.setNextPaymentDate(LocalDateTime.now().plusYears(1));
 
-                    memberSubscriptionRepository.save(sub);
-                    log.info("Subscription created for user: {}", email);
+                        memberSubscriptionRepository.save(sub);
+                        log.info("Subscription created for user: {}", email);
+                    }
                 }
 
                 if (application == null && user == null) {
@@ -315,6 +462,38 @@ public class PaymentService {
                     memberSubscriptionRepository.save(sub);
                     log.info("Subscription cancelled for code: {}", subCode);
                 });
+            } else if (event != null && event.startsWith("refund.")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> refund = (Map<String, Object>) data.get("refund");
+                if (refund != null) {
+                    String refundReference = (String) refund.get("reference");
+                    Payment payment = refundReference != null
+                            ? paymentRepository.findByRefundReference(refundReference).orElse(null)
+                            : null;
+                    if (payment == null) {
+                        Object transaction = refund.get("transaction");
+                        String transactionReference = null;
+                        if (transaction instanceof Map<?, ?> tx) {
+                            Object ref = tx.get("reference");
+                            transactionReference = ref != null ? ref.toString() : null;
+                        }
+                        if (transactionReference != null) {
+                            payment = paymentRepository.findByReference(transactionReference).orElse(null);
+                        }
+                    }
+                    if (payment != null) {
+                        if ("refund.processed".equals(event)) {
+                            payment.setRefundStatus("SUCCESS");
+                            payment.setRefundedAt(LocalDateTime.now());
+                        } else if ("refund.failed".equals(event)) {
+                            payment.setRefundStatus("FAILED");
+                        } else {
+                            payment.setRefundStatus("PROCESSING");
+                        }
+                        paymentRepository.save(payment);
+                        log.info("Refund webhook {} for payment {}", event, payment.getReference());
+                    }
+                }
             }
 
         } catch (Exception e) {

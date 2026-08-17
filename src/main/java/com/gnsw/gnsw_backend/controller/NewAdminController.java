@@ -12,6 +12,7 @@ import com.gnsw.gnsw_backend.repository.PaymentRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
 import com.gnsw.gnsw_backend.service.EmailService;
 import com.gnsw.gnsw_backend.service.NewApplicationService;
+import com.gnsw.gnsw_backend.service.PaymentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -40,6 +41,7 @@ public class NewAdminController {
     private final PaymentRepository paymentRepository;
     private final MemberRepository memberRepository;
     private final EmailService emailService;
+    private final PaymentService paymentService;
 
     @GetMapping("/applications")
     public ResponseEntity<ApiResponse<Page<Application>>> getApplications(
@@ -230,6 +232,37 @@ public class NewAdminController {
                         .success(true)
                         .message("Member created successfully. Welcome email sent.")
                         .data(Map.of("professionalId", professionalId))
+                        .build());
+    }
+
+    @PostMapping("/applications/{id}/refund")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> refundApplicationFee(@PathVariable UUID id) {
+        Application application = newApplicationService.getApplication(id);
+        if (application.getStatus() != ApplicationStatus.REJECTED) {
+            throw new IllegalArgumentException("Only rejected applications can be refunded.");
+        }
+        if (application.getPaymentReference() == null || application.getPaymentReference().isBlank()) {
+            throw new IllegalArgumentException("No payment reference on this application.");
+        }
+        com.gnsw.gnsw_backend.entity.Payment payment = paymentRepository.findByReference(application.getPaymentReference())
+                .orElseThrow(() -> new IllegalArgumentException("No payment record found for this application."));
+        if (payment.getStatus() != com.gnsw.gnsw_backend.enums.PaymentStatus.SUCCESS) {
+            throw new IllegalArgumentException("Only successful payments can be refunded.");
+        }
+        if ("SUCCESS".equalsIgnoreCase(payment.getRefundStatus()) || "PROCESSING".equalsIgnoreCase(payment.getRefundStatus())) {
+            throw new IllegalArgumentException("This payment has already been refunded or a refund is in progress.");
+        }
+
+        Map<String, Object> result = paymentService.refundTransaction(payment.getReference(), payment.getAmount());
+        payment.setRefundStatus("PROCESSING");
+        payment.setRefundReference(String.valueOf(result.get("refundReference")));
+        paymentRepository.save(payment);
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Refund initiated successfully.")
+                        .data(result)
                         .build());
     }
 

@@ -93,6 +93,9 @@ public class Application {
     @Column(name = "email_token")
     private String emailToken;
 
+    @Column(name = "authorization_code")
+    private String authorizationCode;
+
     @Column(name = "email_verified")
     private boolean emailVerified;
 
