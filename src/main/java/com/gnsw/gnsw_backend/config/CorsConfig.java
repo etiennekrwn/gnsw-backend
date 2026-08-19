@@ -18,6 +18,9 @@ public class CorsConfig {
     @Value("${app.frontend.admin-url}")
     private String adminUrl;
 
+    @Value("${app.frontend.main-site-url}")
+    private String mainSiteUrl;
+
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();

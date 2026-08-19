@@ -2,9 +2,12 @@ package com.gnsw.gnsw_backend.controller;
 
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.entity.Member;
+import com.gnsw.gnsw_backend.entity.MemberSubscription;
 import com.gnsw.gnsw_backend.entity.User;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
+import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
+import com.gnsw.gnsw_backend.service.PaymentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -23,6 +26,8 @@ public class MemberController {
 
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
+    private final MemberSubscriptionRepository memberSubscriptionRepository;
+    private final PaymentService paymentService;
 
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getProfile(Authentication authentication) {
@@ -169,6 +174,58 @@ public class MemberController {
                         .success(true)
                         .message("Profile updated successfully.")
                         .data(profile)
+                        .build());
+    }
+
+    @GetMapping("/subscription")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSubscription(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        MemberSubscription sub = memberSubscriptionRepository.findByUserId(user.getId()).orElse(null);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", sub != null ? sub.getStatus() : null);
+        result.put("planCode", sub != null ? sub.getPlanCode() : null);
+        result.put("subscriptionCode", sub != null ? sub.getSubscriptionCode() : null);
+        result.put("nextPaymentDate", sub != null ? sub.getNextPaymentDate() : null);
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Subscription retrieved.")
+                        .data(result)
+                        .build());
+    }
+
+    @PostMapping("/subscription/cancel")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> cancelSubscription(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        MemberSubscription sub = memberSubscriptionRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("No subscription found for this account."));
+
+        if ("cancelled".equalsIgnoreCase(sub.getStatus())) {
+            throw new IllegalArgumentException("Your subscription has already been cancelled.");
+        }
+
+        // Cancel the Paystack subscription (if any) so no further charges occur.
+        paymentService.cancelSubscription(sub.getSubscriptionCode());
+        sub.setStatus("cancelled");
+        memberSubscriptionRepository.save(sub);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", sub.getStatus());
+        result.put("nextPaymentDate", sub.getNextPaymentDate());
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Subscription cancelled. You will not be charged again.")
+                        .data(result)
                         .build());
     }
 
