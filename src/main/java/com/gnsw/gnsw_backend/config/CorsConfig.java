@@ -24,10 +24,9 @@ public class CorsConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        // Allow all origins for the temporary Railway host.
-        // allowedOriginPatterns("*") works together with allowCredentials(true),
-        // unlike setAllowedOrigins(List.of("*")) which Spring rejects with credentials.
-        config.setAllowedOriginPatterns(List.of("*"));
+        // Restrict CORS to the three GNSW frontends (configured via env on Railway).
+        // allowedOriginPatterns(...) works with allowCredentials(true), unlike setAllowedOrigins.
+        config.setAllowedOriginPatterns(List.of(mainSiteUrl, adminUrl, memberPortalUrl));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
