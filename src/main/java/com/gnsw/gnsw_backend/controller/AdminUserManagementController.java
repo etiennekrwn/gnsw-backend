@@ -107,6 +107,15 @@ public class AdminUserManagementController {
                         .build());
     }
 
+    private <T> ResponseEntity<ApiResponse<T>> ok(T data, String message) {
+        return ResponseEntity.ok()
+                .body(ApiResponse.<T>builder()
+                        .success(true)
+                        .message(message)
+                        .data(data)
+                        .build());
+    }
+
     @Data
     public static class InviteRequest {
         @NotBlank(message = "Email is required")
