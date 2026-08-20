@@ -123,4 +123,12 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<!-- Belt-and-suspenders: nix/Railway sometimes passes -Pproduction.
+		 Define it here so the activation is valid and adds nothing harmful. -->
+	<profiles>
+		<profile>
+			<id>production</id>
+		</profile>
+	</profiles>
 </project>

@@ -5,9 +5,12 @@
   java = true
 
 [build]
-  # Use the Maven wrapper to build
+  # Use the Maven wrapper to build.
+  # NOTE: Railway/Nixpacks runs `./mvnw ... clean dependency:list install`;
+  # do NOT pass `-Pproduction` here unless you define a <production> profile
+  # in pom.xml (nixpacks has no such profile by default).
   command = "./mvnw clean package -DskipTests"
 
 [deploy]
-  # Run the built jar
-  startCommand = "java -jar target/gnsw-backend-0.0.1-SNAPSHOT.jar"
+  # Run the built jar. Must bind to the Railway-injected $PORT.
+  startCommand = "java -Dserver.port=$PORT -jar target/gnsw-backend-0.0.1-SNAPSHOT.jar"
