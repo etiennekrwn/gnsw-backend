@@ -52,6 +52,7 @@ public class AdminAuthService {
         userMap.put("displayName", user.getDisplayName());
         userMap.put("role", user.getRole().name());
         userMap.put("status", user.getStatus().name());
+        userMap.put("theme", user.getTheme() != null ? user.getTheme() : "LIGHT");
         userMap.put("allowedModules", new ArrayList<>(AdminPermissions.allowedModules(user)));
 
         Map<String, Object> result = new HashMap<>();

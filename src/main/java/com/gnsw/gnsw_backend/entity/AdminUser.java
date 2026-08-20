@@ -72,6 +72,9 @@ public class AdminUser {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column
+    private String theme;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

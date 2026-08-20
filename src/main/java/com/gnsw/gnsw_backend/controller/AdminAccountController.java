@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import jakarta.validation.constraints.Pattern;
+
 /**
  * Self-service account endpoints available to every admin-console identity
  * (including MANAGER): view your own profile and change your own password.
@@ -41,6 +43,7 @@ public class AdminAccountController {
         data.put("displayName", me.getDisplayName());
         data.put("role", me.getRole().name());
         data.put("status", me.getStatus().name());
+        data.put("theme", me.getTheme() != null ? me.getTheme() : "LIGHT");
         data.put("allowedModules", new ArrayList<>(AdminPermissions.allowedModules(me)));
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
@@ -66,9 +69,44 @@ public class AdminAccountController {
                         .build());
     }
 
+    @PreAuthorize("hasAuthority('ADMIN_IDENTITY')")
+    @GetMapping("/theme")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getTheme(Authentication authentication) {
+        AdminUser me = resolve(authentication);
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Theme retrieved.")
+                        .data(Map.of("theme", me.getTheme() != null ? me.getTheme() : "LIGHT"))
+                        .build());
+    }
+
+    @PreAuthorize("hasAuthority('ADMIN_IDENTITY')")
+    @PatchMapping("/theme")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateTheme(
+            @RequestBody ThemeRequest request,
+            Authentication authentication) {
+        AdminUser me = resolve(authentication);
+        me.setTheme(request.getTheme());
+        adminUserRepository.save(me);
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Theme updated.")
+                        .data(Map.of("theme", me.getTheme()))
+                        .build());
+    }
+
     private AdminUser resolve(Authentication authentication) {
         return adminUserRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Admin account not found."));
+    }
+
+    @Data
+    public static class ThemeRequest {
+        @NotBlank(message = "Theme is required")
+        @Pattern(regexp = "LIGHT|DARK", message = "Theme must be LIGHT or DARK")
+        private String theme;
     }
 
     @Data

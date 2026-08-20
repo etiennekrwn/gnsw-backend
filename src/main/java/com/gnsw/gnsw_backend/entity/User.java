@@ -101,6 +101,8 @@ public class User {
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+@Column(name = "deletion_requested_at")
+    private LocalDateTime deletionRequestedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -2,21 +2,27 @@ package com.gnsw.gnsw_backend.controller;
 
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.entity.Member;
+import com.gnsw.gnsw_backend.entity.MemberPreference;
 import com.gnsw.gnsw_backend.entity.MemberSubscription;
 import com.gnsw.gnsw_backend.entity.User;
+import com.gnsw.gnsw_backend.repository.MemberPreferenceRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
 import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
 import com.gnsw.gnsw_backend.service.PaymentService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -27,7 +33,9 @@ public class MemberController {
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
     private final MemberSubscriptionRepository memberSubscriptionRepository;
+    private final MemberPreferenceRepository memberPreferenceRepository;
     private final PaymentService paymentService;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getProfile(Authentication authentication) {
@@ -229,11 +237,150 @@ public class MemberController {
                         .build());
     }
 
+    @GetMapping("/preferences")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getPreferences(Authentication authentication) {
+        User user = resolveUser(authentication);
+        MemberPreference p = memberPreferenceRepository.findByUserId(user.getId())
+                .orElseGet(() -> defaultPreferences(user.getId()));
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Preferences retrieved.")
+                        .data(prefMap(p))
+                        .build());
+    }
+
+    @PatchMapping("/preferences")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updatePreferences(
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        User user = resolveUser(authentication);
+        MemberPreference p = memberPreferenceRepository.findByUserId(user.getId())
+                .orElseGet(() -> defaultPreferences(user.getId()));
+
+        applyBoolean(body, "emailNotifications", p::setEmailNotifications);
+        applyBoolean(body, "weeklyDigest", p::setWeeklyDigest);
+        applyBoolean(body, "newArticleAlerts", p::setNewArticleAlerts);
+        applyBoolean(body, "commentAlerts", p::setCommentAlerts);
+        applyBoolean(body, "memberAnnouncements", p::setMemberAnnouncements);
+        applyBoolean(body, "darkMode", p::setDarkMode);
+        applyString(body, "fontSize", p::setFontSize);
+        memberPreferenceRepository.save(p);
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Preferences updated.")
+                        .data(prefMap(p))
+                        .build());
+    }
+
+    @PostMapping("/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody PasswordChangeRequest request,
+            Authentication authentication) {
+        User user = resolveUser(authentication);
+        if (user.getPasswordHash() == null
+                || !passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("Current password is incorrect.");
+        }
+        if (!request.getNewPassword().equals(request.getNewPasswordConfirmation())) {
+            throw new IllegalArgumentException("New passwords do not match.");
+        }
+        if (request.getNewPassword().length() < 8) {
+            throw new IllegalArgumentException("New password must be at least 8 characters.");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Void>builder()
+                        .success(true)
+                        .message("Password updated successfully.")
+                        .build());
+    }
+
+    @PostMapping("/account/deletion-request")
+    public ResponseEntity<ApiResponse<Void>> deletionRequest(
+            @Valid @RequestBody DeletionRequest request,
+            Authentication authentication) {
+        User user = resolveUser(authentication);
+        if (user.getPasswordHash() == null
+                || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("Password is incorrect.");
+        }
+        user.setDeletionRequestedAt(LocalDateTime.now());
+        userRepository.save(user);
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Void>builder()
+                        .success(true)
+                        .message("Deletion request received. Our team will review it shortly.")
+                        .build());
+    }
+
+    private User resolveUser(Authentication authentication) {
+        String username = authentication.getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+    }
+
+    private MemberPreference defaultPreferences(java.util.UUID userId) {
+        return MemberPreference.builder()
+                .userId(userId)
+                .emailNotifications(true)
+                .weeklyDigest(false)
+                .newArticleAlerts(true)
+                .commentAlerts(true)
+                .memberAnnouncements(false)
+                .darkMode(false)
+                .fontSize("medium")
+                .build();
+    }
+
+    private Map<String, Object> prefMap(MemberPreference p) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("emailNotifications", p.getEmailNotifications());
+        m.put("weeklyDigest", p.getWeeklyDigest());
+        m.put("newArticleAlerts", p.getNewArticleAlerts());
+        m.put("commentAlerts", p.getCommentAlerts());
+        m.put("memberAnnouncements", p.getMemberAnnouncements());
+        m.put("darkMode", p.getDarkMode());
+        m.put("fontSize", p.getFontSize());
+        return m;
+    }
+
+    private void applyBoolean(Map<String, Object> body, String key, java.util.function.Consumer<Boolean> setter) {
+        Object v = body.get(key);
+        if (v instanceof Boolean b) setter.accept(b);
+    }
+
+    private void applyString(Map<String, Object> body, String key, java.util.function.Consumer<String> setter) {
+        Object v = body.get(key);
+        if (v instanceof String s) setter.accept(s);
+    }
+
     @Data
     public static class OnboardingPhotoRequest {
         @jakarta.validation.constraints.NotBlank(message = "Profile image is required")
         @Size(max = 5000000, message = "Image data must not exceed 5MB")
         private String profileImage;
+    }
+
+    @Data
+    public static class PasswordChangeRequest {
+        @NotBlank(message = "Current password is required")
+        private String currentPassword;
+
+        @NotBlank(message = "New password is required")
+        private String newPassword;
+
+        @NotBlank(message = "Password confirmation is required")
+        private String newPasswordConfirmation;
+    }
+
+    @Data
+    public static class DeletionRequest {
+        @NotBlank(message = "Password is required")
+        private String password;
     }
 
     @Data
