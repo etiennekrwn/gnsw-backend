@@ -23,12 +23,17 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(String username, String role) {
+        return generateToken(username, role, "MEMBER");
+    }
+
+    public String generateToken(String username, String role, String subjectType) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(username)
                 .claim("role", role)
+                .claim("subtype", subjectType)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
@@ -37,6 +42,15 @@ public class JwtTokenProvider {
 
     public String getUsernameFromToken(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    /**
+     * Distinguishes admin-console tokens ("ADMIN") from member tokens ("MEMBER").
+     * Defaults to MEMBER for backward compatibility with already-issued tokens.
+     */
+    public String getSubjectTypeFromToken(String token) {
+        String subtype = parseClaims(token).get("subtype", String.class);
+        return subtype == null ? "MEMBER" : subtype;
     }
 
     public boolean validateToken(String token) {

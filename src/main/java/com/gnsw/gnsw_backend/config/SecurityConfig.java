@@ -31,8 +31,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints - no authentication needed
                         .requestMatchers("/api/v1/public/**").permitAll()
-                        // Admin endpoints - require ADMIN role
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        // Admin user-management is reserved for full admins.
+                        .requestMatchers("/api/v1/admin/users-admin/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        // Module-scoped checks for MANAGER accounts. SUPER_ADMIN
+                        // and ADMIN implicitly hold every MODULE_* authority.
+                        .requestMatchers("/api/v1/admin/applications/**", "/api/v1/admin/members/**", "/api/v1/admin/tiers/**").hasAuthority("MODULE_MEMBERS")
+                        // Every admin-console identity (incl. MANAGER) reaches the base.
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN_IDENTITY")
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
                 )

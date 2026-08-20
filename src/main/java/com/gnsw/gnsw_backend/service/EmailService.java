@@ -39,6 +39,9 @@ public class EmailService {
     @Value("${app.frontend.member-portal-url}")
     private String memberPortalUrl;
 
+    @Value("${app.frontend.admin-url}")
+    private String adminUrl;
+
     public EmailService(TemplateEngine templateEngine) {
         this.templateEngine = templateEngine;
     }
@@ -97,6 +100,22 @@ public class EmailService {
         context.setVariable("resetUrl", memberPortalUrl + "/reset-password?token=" + token);
         String html = templateEngine.process("reset-password", context);
         sendHtmlEmail(to, "Reset Your GNSW Password", html);
+    }
+
+    /**
+     * Onboarding email for a newly invited admin-console account. The recipient
+     * sets their own password via the one-time token entered below.
+     */
+    @Async
+    public void sendAdminInvite(String to, String displayName, String roleLabel,
+                                String modulesLabel, String token) {
+        Context context = new Context();
+        context.setVariable("displayName", displayName);
+        context.setVariable("roleLabel", roleLabel);
+        context.setVariable("modulesLabel", modulesLabel == null ? "" : modulesLabel);
+        context.setVariable("acceptUrl", adminUrl + "/accept-invite?token=" + token + "&email=" + to);
+        String html = templateEngine.process("admin-invite", context);
+        sendHtmlEmail(to, "You've been invited to the GNSW Admin Console", html);
     }
 
     private void sendEmail(String to, String subject, String template,

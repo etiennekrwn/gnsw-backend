@@ -1,12 +1,14 @@
 package com.gnsw.gnsw_backend.controller;
 
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
+import com.gnsw.gnsw_backend.entity.AdminUser;
 import com.gnsw.gnsw_backend.entity.Application;
 import com.gnsw.gnsw_backend.entity.Member;
 import com.gnsw.gnsw_backend.entity.User;
 import com.gnsw.gnsw_backend.enums.ApplicationStatus;
 import com.gnsw.gnsw_backend.enums.MembershipTier;
 import com.gnsw.gnsw_backend.enums.UserStatus;
+import com.gnsw.gnsw_backend.repository.AdminUserRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
 import com.gnsw.gnsw_backend.repository.PaymentRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
@@ -38,6 +40,7 @@ public class NewAdminController {
 
     private final NewApplicationService newApplicationService;
     private final UserRepository userRepository;
+    private final AdminUserRepository adminUserRepository;
     private final PaymentRepository paymentRepository;
     private final MemberRepository memberRepository;
     private final EmailService emailService;
@@ -299,6 +302,11 @@ public class NewAdminController {
      * Looks up the User by username (set during login) and returns their ID.
      */
     private UUID getAdminId(Authentication authentication) {
+        // Admin tokens resolve against the separate admin_users identity.
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof AdminUser adminUser) {
+            return adminUser.getId();
+        }
         String username = authentication.getName();
         return userRepository.findByUsername(username)
                 .map(User::getId)

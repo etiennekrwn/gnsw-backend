@@ -1,9 +1,9 @@
 package com.gnsw.gnsw_backend;
 
-import com.gnsw.gnsw_backend.entity.User;
-import com.gnsw.gnsw_backend.enums.MembershipTier;
-import com.gnsw.gnsw_backend.enums.UserStatus;
-import com.gnsw.gnsw_backend.repository.UserRepository;
+import com.gnsw.gnsw_backend.entity.AdminUser;
+import com.gnsw.gnsw_backend.enums.AdminRole;
+import com.gnsw.gnsw_backend.enums.AdminStatus;
+import com.gnsw.gnsw_backend.repository.AdminUserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -22,32 +22,24 @@ public class GnswBackendApplication {
 	}
 
 	@Bean
-	CommandLineRunner seedAdmin(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+	CommandLineRunner seedAdmin(AdminUserRepository adminUserRepository, PasswordEncoder passwordEncoder) {
 		return args -> {
-			var existingAdmin = userRepository.findByEmail("admin@gnsw.ng");
-			if (existingAdmin.isPresent()) {
-				// Do NOT reset the password on startup: a changed admin
-				// password must survive restarts.
-				System.out.println("✅ Admin user already exists. Skipping password reset.");
-			} else {
-				User admin = User.builder()
-						.email("admin@gnsw.ng")
-						.firstName("Super")
-						.lastName("Admin")
-						.addressLine1("GNSW HQ")
-						.city("Lagos")
-						.stateProvince("Lagos State")
-						.zipPostalCode("100001")
-						.country("Nigeria")
-						.tier(MembershipTier.FELLOW)
-						.status(UserStatus.ACCEPTED)
-						.role("ROLE_ADMIN")
-						.username("admin")
-						.passwordHash(passwordEncoder.encode("Admin@12345"))
-						.build();
-				userRepository.save(admin);
-				System.out.println("✅ Admin user created: admin / Admin@12345");
+			// The one immutable Super Admin lives entirely in the separate
+			// admin_users table. Its password is never reset on restart.
+			var existing = adminUserRepository.findByEmail("admin@gnsw.ng");
+			if (existing.isPresent()) {
+				System.out.println("✅ Super Admin already exists. Skipping.");
+				return;
 			}
+			AdminUser superAdmin = AdminUser.builder()
+					.email("admin@gnsw.ng")
+					.displayName("Super Admin")
+					.role(AdminRole.SUPER_ADMIN)
+					.status(AdminStatus.ACTIVE)
+					.passwordHash(passwordEncoder.encode("Admin@12345"))
+					.build();
+			adminUserRepository.save(superAdmin);
+			System.out.println("✅ Super Admin created: admin@gnsw.ng / Admin@12345 (change at first login).");
 		};
 	}
 }
