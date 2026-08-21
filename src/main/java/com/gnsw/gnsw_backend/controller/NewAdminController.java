@@ -10,6 +10,7 @@ import com.gnsw.gnsw_backend.enums.MembershipTier;
 import com.gnsw.gnsw_backend.enums.UserStatus;
 import com.gnsw.gnsw_backend.repository.AdminUserRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
+import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
 import com.gnsw.gnsw_backend.repository.PaymentRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
 import com.gnsw.gnsw_backend.service.EmailService;
@@ -45,6 +46,7 @@ public class NewAdminController {
     private final MemberRepository memberRepository;
     private final EmailService emailService;
     private final PaymentService paymentService;
+    private final MemberSubscriptionRepository memberSubscriptionRepository;
 
     @GetMapping("/applications")
     public ResponseEntity<ApiResponse<Page<Application>>> getApplications(
@@ -113,15 +115,32 @@ public class NewAdminController {
     }
 
     @GetMapping("/members")
-    public ResponseEntity<ApiResponse<Page<User>>> getMembers(
+    public ResponseEntity<ApiResponse<Page<Map<String, Object>>>> getMembers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Page<User> members = userRepository.findByStatus(UserStatus.ACCEPTED, PageRequest.of(page, size));
+        Page<Map<String, Object>> mapped = members.map(user -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", user.getId());
+            m.put("email", user.getEmail());
+            m.put("firstName", user.getFirstName());
+            m.put("lastName", user.getLastName());
+            m.put("tier", user.getTier() != null ? user.getTier().name() : null);
+            m.put("professionalId", user.getProfessionalId());
+            m.put("status", user.getStatus() != null ? user.getStatus().name() : null);
+            m.put("city", user.getCity());
+            m.put("stateProvince", user.getStateProvince());
+            m.put("country", user.getCountry());
+            m.put("approvedAt", user.getApprovedAt());
+            m.put("lastLoginAt", user.getLastLoginAt());
+            m.put("subscriptionStatus", subscriptionStatusLabel(user.getId()));
+            return m;
+        });
         return ResponseEntity.ok()
-                .body(ApiResponse.<Page<User>>builder()
+                .body(ApiResponse.<Page<Map<String, Object>>>builder()
                         .success(true)
                         .message("Members retrieved.")
-                        .data(members)
+                        .data(mapped)
                         .build());
     }
 
@@ -145,6 +164,7 @@ public class NewAdminController {
         detail.put("approvedAt", user.getApprovedAt());
         detail.put("lastLoginAt", user.getLastLoginAt());
         detail.put("emailVerifiedAt", user.getEmailVerifiedAt());
+        detail.put("subscriptionStatus", subscriptionStatusLabel(user.getId()));
         if (member != null) {
             detail.put("organisation", member.getOrganisation());
             detail.put("bio", member.getBio());
@@ -352,5 +372,25 @@ public class NewAdminController {
     public static class RejectRequest {
         @NotBlank(message = "Rejection reason is required")
         private String reason;
+    }
+
+    /**
+     * Returns a human-readable subscription state for the admin members list.
+     * A member whose subscription is not in good standing (or has none) shows
+     * as "Inactive"; everyone else shows their subscription state.
+     */
+    private String subscriptionStatusLabel(UUID userId) {
+        return memberSubscriptionRepository.findByUserId(userId)
+                .map(sub -> {
+                    String status = sub.getStatus() == null ? "" : sub.getStatus().toLowerCase();
+                    switch (status) {
+                        case "active", "pending": return "Active";
+                        case "past_due": return "Past due";
+                        case "cancelled": return "Cancelled";
+                        case "expired": return "Inactive";
+                        default: return status.isEmpty() ? "Inactive" : status.substring(0, 1).toUpperCase() + status.substring(1);
+                    }
+                })
+                .orElse("Inactive");
     }
 }

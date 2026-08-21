@@ -62,6 +62,12 @@ app:
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970337336763979244226452948404D635166546A576E5A7234753778214125442A47}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  subscription:
+    # Days a member stays entitled after their renewal charge fails before we
+    # mark the subscription "expired" (shown Inactive in admin, access lost).
+    grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
+    # Nightly cron (UTC) that moves past-due/cancelled subscriptions to expired.
+    reconcile-cron: ${SUBSCRIPTION_RECONCILE_CRON:0 15 2 * * *}
   frontend:
     member-portal-url: ${MEMBER_PORTAL_URL:http://localhost:5175}
     main-site-url: ${MAIN_SITE_URL:http://localhost:5173}

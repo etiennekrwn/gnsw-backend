@@ -33,6 +33,12 @@ public class MemberSubscription {
     @Column(name = "next_payment_date")
     private LocalDateTime nextPaymentDate;
 
+    @Column(name = "grace_started_at")
+    private LocalDateTime graceStartedAt;
+
+    @Column(name = "last_payment_attempt_at")
+    private LocalDateTime lastPaymentAttemptAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

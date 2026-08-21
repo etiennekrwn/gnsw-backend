@@ -5,6 +5,7 @@ import com.gnsw.gnsw_backend.entity.Member;
 import com.gnsw.gnsw_backend.entity.MemberPreference;
 import com.gnsw.gnsw_backend.entity.MemberSubscription;
 import com.gnsw.gnsw_backend.entity.User;
+import com.gnsw.gnsw_backend.enums.MembershipTier;
 import com.gnsw.gnsw_backend.repository.MemberPreferenceRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
 import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
@@ -36,6 +37,9 @@ public class MemberController {
     private final MemberPreferenceRepository memberPreferenceRepository;
     private final PaymentService paymentService;
     private final PasswordEncoder passwordEncoder;
+
+    @org.springframework.beans.factory.annotation.Value("${app.subscription.grace-days:5}")
+    private int graceDays;
 
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getProfile(Authentication authentication) {
@@ -198,6 +202,13 @@ public class MemberController {
         result.put("planCode", sub != null ? sub.getPlanCode() : null);
         result.put("subscriptionCode", sub != null ? sub.getSubscriptionCode() : null);
         result.put("nextPaymentDate", sub != null ? sub.getNextPaymentDate() : null);
+        result.put("graceStartedAt", sub != null ? sub.getGraceStartedAt() : null);
+        result.put("lastPaymentAttemptAt", sub != null ? sub.getLastPaymentAttemptAt() : null);
+        result.put("graceDays", graceDays);
+        result.put("graceEndsAt", sub != null && sub.getGraceStartedAt() != null
+                ? sub.getGraceStartedAt().plusDays(graceDays) : null);
+        result.put("isActive", subscriptionHasAccess(sub));
+        result.put("tier", user.getTier() != null ? user.getTier().name() : null);
 
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
@@ -205,6 +216,91 @@ public class MemberController {
                         .message("Subscription retrieved.")
                         .data(result)
                         .build());
+    }
+
+    /**
+     * Upgrades the member's plan (AFFILIATE -> ASSOCIATE -> MEMBER). FELLOW is
+     * admin-assigned only and not available here. Paystack's plan change applies
+     * on the next invoice (no automatic mid-cycle proration).
+     */
+    @PostMapping("/subscription/upgrade")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> upgradeSubscription(
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        Object newTierObj = body.get("newTier");
+        if (!(newTierObj instanceof String newTier) || newTier.isBlank()) {
+            throw new IllegalArgumentException("A target tier (newTier) is required.");
+        }
+        MembershipTier current = user.getTier();
+        MembershipTier target;
+        try {
+            target = MembershipTier.valueOf(newTier.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown tier: " + newTier);
+        }
+
+        int currentRank = tierRank(current);
+        int targetRank = tierRank(target);
+        if (current == null || currentRank >= targetRank) {
+            throw new IllegalArgumentException("You can only upgrade to a higher tier (Affiliate to Associate to Member).");
+        }
+        if (target == MembershipTier.FELLOW) {
+            throw new IllegalArgumentException("The Fellow tier is assigned by the admin and cannot be purchased.");
+        }
+
+        MemberSubscription sub = memberSubscriptionRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("No subscription found for this account."));
+
+        // Change the Paystack plan, then update our records.
+        String newPlanCode = paymentService.changeSubscriptionPlan(sub.getSubscriptionCode(), target.name());
+        sub.setPlanCode(newPlanCode);
+        memberSubscriptionRepository.save(sub);
+
+        user.setTier(target);
+        userRepository.save(user);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("tier", target.name());
+        result.put("planCode", newPlanCode);
+        result.put("message", "Your tier has been upgraded to " + target.name()
+                + ". The new plan amount will apply on your next renewal.");
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Tier upgraded successfully.")
+                        .data(result)
+                        .build());
+    }
+
+    private int tierRank(MembershipTier tier) {
+        if (tier == null) return 0;
+        return switch (tier) {
+            case AFFILIATE -> 1;
+            case ASSOCIATE -> 2;
+            case MEMBER -> 3;
+            case FELLOW -> 4;
+        };
+    }
+
+    private boolean subscriptionHasAccess(MemberSubscription sub) {
+        if (sub == null) return false;
+        String status = sub.getStatus() == null ? "" : sub.getStatus().toLowerCase();
+        if ("active".equals(status) || "pending".equals(status)) return true;
+        if ("past_due".equals(status)) {
+            // Access is kept through the grace window (graceDays from the first failure).
+            return sub.getGraceStartedAt() == null
+                    || sub.getGraceStartedAt().plusDays(graceDays).isAfter(LocalDateTime.now());
+        }
+        if ("cancelled".equals(status)) {
+            // Access lasts until the end of the paid year.
+            return sub.getNextPaymentDate() != null && sub.getNextPaymentDate().isAfter(LocalDateTime.now());
+        }
+        return false;
     }
 
     @PostMapping("/subscription/cancel")
@@ -232,7 +328,7 @@ public class MemberController {
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
-                        .message("Subscription cancelled. You will not be charged again.")
+                        .message("Subscription cancelled. You will not be charged again. Your access continues until the end of your paid period.")
                         .data(result)
                         .build());
     }

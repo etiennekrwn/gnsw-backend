@@ -222,12 +222,7 @@ public class PaymentService {
      * counting from approval, with unlimited annual renewals.
      */
     public SubscriptionResult createSubscription(String email, String tierName, String authorizationCode, LocalDateTime startDate) {
-        String planCode = switch (tierName) {
-            case "AFFILIATE" -> affiliatePlanCode;
-            case "ASSOCIATE" -> associatePlanCode;
-            case "MEMBER" -> memberPlanCode;
-            default -> throw new IllegalArgumentException("Invalid tier: " + tierName);
-        };
+        String planCode = planCodeForTier(tierName);
 
         if (authorizationCode == null || authorizationCode.isBlank()) {
             throw new IllegalArgumentException("No card authorization available to create the subscription.");
@@ -270,6 +265,52 @@ public class PaymentService {
         } catch (Exception e) {
             log.error("Paystack subscription creation failed for {}: {}", email, e.getMessage());
             throw new RuntimeException("Failed to create subscription on Paystack.");
+        }
+    }
+
+    /** Maps a membership tier to its Paystack recurring plan code. */
+    private String planCodeForTier(String tierName) {
+        return switch (tierName) {
+            case "AFFILIATE" -> affiliatePlanCode;
+            case "ASSOCIATE" -> associatePlanCode;
+            case "MEMBER" -> memberPlanCode;
+            default -> throw new IllegalArgumentException("Invalid tier: " + tierName);
+        };
+    }
+
+    /**
+     * Upgrades/downgrades an existing Paystack subscription to another plan via
+     * POST /subscription/{code}/manage/plan. NOTE: Paystack does not automatically
+     * prorate a mid-cycle upgrade; the new plan amount is charged on the next invoice.
+     */
+    public String changeSubscriptionPlan(String subscriptionCode, String tierName) {
+        if (subscriptionCode == null || subscriptionCode.isBlank()) {
+            throw new IllegalArgumentException("No subscription to upgrade.");
+        }
+        String planCode = planCodeForTier(tierName);
+        try {
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of("plan", planCode));
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.paystack.co/subscription/" + subscriptionCode + "/manage/plan"))
+                    .header("Authorization", "Bearer " + paystackSecretKey)
+                    .header("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(response.body(), Map.class);
+            if (!Boolean.TRUE.equals(responseBody.get("status")) || response.statusCode() >= 400) {
+                log.error("Paystack plan change failed for {}: {}", subscriptionCode, response.body());
+                throw new RuntimeException("Failed to change subscription plan on Paystack.");
+            }
+            log.info("Paystack plan changed for {} to {}", subscriptionCode, planCode);
+            return planCode;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Paystack plan change failed for {}: {}", subscriptionCode, e.getMessage());
+            throw new RuntimeException("Failed to change subscription plan on Paystack.");
         }
     }
 
@@ -439,6 +480,9 @@ public class PaymentService {
                         if ("success".equals(data.get("status"))) {
                             sub.setStatus("active");
                             sub.setNextPaymentDate(LocalDateTime.now().plusYears(1));
+                            // Renewal succeeded: leave the grace window entirely.
+                            sub.setGraceStartedAt(null);
+                            sub.setLastPaymentAttemptAt(null);
                             memberSubscriptionRepository.save(sub);
                             log.info("Subscription renewed for code: {}", subCode);
                         }
@@ -451,6 +495,13 @@ public class PaymentService {
                     String subCode = (String) subscription.get("subscription_code");
                     memberSubscriptionRepository.findBySubscriptionCode(subCode).ifPresent(sub -> {
                         sub.setStatus("past_due");
+                        // Grace is measured from the FIRST failed attempt, so a member who
+                        // fixes their card never loses days; the nightly reconcile job
+                        // flips us to "expired" once the grace window elapses.
+                        if (sub.getGraceStartedAt() == null) {
+                            sub.setGraceStartedAt(LocalDateTime.now());
+                        }
+                        sub.setLastPaymentAttemptAt(LocalDateTime.now());
                         memberSubscriptionRepository.save(sub);
                         log.warn("Subscription payment failed for code: {}", subCode);
                     });
