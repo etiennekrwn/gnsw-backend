@@ -13,4 +13,7 @@ public interface MemberSubscriptionRepository extends JpaRepository<MemberSubscr
     Optional<MemberSubscription> findByUserId(UUID userId);
     Optional<MemberSubscription> findBySubscriptionCode(String subscriptionCode);
     List<MemberSubscription> findByStatusIgnoreCase(String status);
+
+    /** Count of subscriptions currently in good standing (active or past-due-within-grace). */
+    long countByStatusIgnoreCase(String status);
 }

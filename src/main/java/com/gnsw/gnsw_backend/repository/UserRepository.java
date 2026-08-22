@@ -33,6 +33,20 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     long countByStatus(UserStatus status);
 
+    /** Active ACCEPTED members grouped by tier, for analytics tier-distribution. */
+    @Query("SELECT u.tier AS tier, COUNT(u) AS cnt FROM User u WHERE u.status = 'ACCEPTED' GROUP BY u.tier")
+    List<Object[]> countAcceptedByTier();
+
+    /** Members who became ACCEPTED since a cutoff (for "new this month"). */
+    @Query("SELECT COUNT(u) FROM User u WHERE u.status = 'ACCEPTED' AND u.approvedAt >= :since")
+    long countAcceptedSince(java.time.LocalDateTime since);
+
+    /** Members approved grouped by year/month, for the signup chart. */
+    @Query("SELECT FUNCTION('to_char', u.approvedAt, 'YYYY-MM') AS ym, COUNT(u) AS cnt " +
+           "FROM User u WHERE u.approvedAt IS NOT NULL " +
+           "GROUP BY FUNCTION('to_char', u.approvedAt, 'YYYY-MM') ORDER BY ym")
+    List<Object[]> countAcceptedByMonth();
+
     @Query("SELECT COALESCE(MAX(u.professionalId), 'GNSW-0000-000') FROM User u WHERE u.professionalId LIKE ?1%")
     String findMaxProfessionalIdByYearPrefix(String yearPrefix);
 

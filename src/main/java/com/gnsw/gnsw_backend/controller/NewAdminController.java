@@ -186,6 +186,50 @@ public class NewAdminController {
                         .build());
     }
 
+@PutMapping("/members/{id}/tier")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> promoteToFellow(
+            @PathVariable UUID id, Authentication authentication) {
+        // Guard: only SUPER_ADMIN or ADMIN may promote to Fellow (never a MANAGER).
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof AdminUser admin) {
+            if (admin.getRole() != com.gnsw.gnsw_backend.enums.AdminRole.SUPER_ADMIN
+                    && admin.getRole() != com.gnsw.gnsw_backend.enums.AdminRole.ADMIN) {
+                throw new IllegalArgumentException("Only Super Admin or Admin can promote a member to Fellow.");
+            }
+        } else {
+            throw new IllegalArgumentException("Only an admin account can promote to Fellow.");
+        }
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found."));
+        if (user.getTier() == MembershipTier.FELLOW) {
+            throw new IllegalArgumentException("This member is already a Fellow.");
+        }
+
+        // Promote to FELLOW (permanent, lifetime membership — no further dues).
+        user.setTier(MembershipTier.FELLOW);
+        userRepository.save(user);
+
+        // Fellows no longer pay: cancel any active Paystack subscription and mark it
+        // as a lifetime "fellow" membership so they are never re-billed.
+        memberSubscriptionRepository.findByUserId(user.getId()).ifPresent(sub -> {
+            paymentService.cancelSubscription(sub.getSubscriptionCode());
+            sub.setStatus("fellow");
+            sub.setNextPaymentDate(null);
+            memberSubscriptionRepository.save(sub);
+        });
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("tier", MembershipTier.FELLOW.name());
+        result.put("message", "Member promoted to Fellow. They are now a lifetime member with no further dues.");
+
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Member promoted to Fellow.")
+                        .data(result)
+                        .build());
+    }
     @PostMapping("/members")
     public ResponseEntity<ApiResponse<Map<String, String>>> createManualMember(
             @Valid @RequestBody CreateMemberRequest request,
@@ -302,13 +346,33 @@ public class NewAdminController {
 
     @GetMapping("/stats")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
-        Map<String, Object> stats = Map.of(
-                "pending", newApplicationService.getPendingCount(),
-                "approved", newApplicationService.getApprovedCount(),
-                "rejected", newApplicationService.getRejectedCount(),
-                "totalRevenue", paymentRepository.getTotalRevenue(),
-                "successfulPayments", paymentRepository.countByStatus(com.gnsw.gnsw_backend.enums.PaymentStatus.SUCCESS)
-        );
+        java.time.LocalDateTime monthStart = java.time.LocalDate.now().withDayOfMonth(1).atStartOfDay();
+
+        // Tier distribution: [tier_name, count][] -> map.
+        Map<String, Long> membersByTier = new java.util.LinkedHashMap<>();
+        for (Object[] row : userRepository.countAcceptedByTier()) {
+            String tier = row[0] != null ? ((MembershipTier) row[0]).name() : "UNKNOWN";
+            membersByTier.put(tier, ((Number) row[1]).longValue());
+        }
+
+        // Revenue by month: [YYYY-MM, sum][] -> map.
+        Map<String, Long> revenueByMonth = new java.util.LinkedHashMap<>();
+        for (Object[] row : paymentRepository.getRevenueByMonth()) {
+            revenueByMonth.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
+        }
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("pending", newApplicationService.getPendingCount());
+        stats.put("approved", newApplicationService.getApprovedCount());
+        stats.put("rejected", newApplicationService.getRejectedCount());
+        stats.put("totalRevenue", paymentRepository.getTotalRevenue());
+        stats.put("successfulPayments", paymentRepository.countByStatus(com.gnsw.gnsw_backend.enums.PaymentStatus.SUCCESS));
+        stats.put("totalMembers", userRepository.countByStatus(UserStatus.ACCEPTED));
+        stats.put("newThisMonth", userRepository.countAcceptedSince(monthStart));
+        stats.put("activeSubscriptions", memberSubscriptionRepository.countByStatusIgnoreCase("active"));
+        stats.put("membersByTier", membersByTier);
+        stats.put("revenueByMonth", revenueByMonth);
+
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
