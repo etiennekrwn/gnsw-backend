@@ -31,3 +31,15 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local runtime / env (never commit) ###
+.env
+.env.local
+*.log
+_b2.txt
+_build.txt
+_build2.txt
+_c.txt
+package-output.txt
+backend-output.txt
+**.env

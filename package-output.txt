@@ -1,2 +1,0 @@
-'\" "C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.15\bin\mvn.cmd\' is not recognized as an internal or external command,
-operable program or batch file.
