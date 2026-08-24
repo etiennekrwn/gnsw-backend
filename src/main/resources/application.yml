@@ -30,10 +30,6 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 1
-    # The shared Supabase DB also runs migrations (V7/V8) from the remote
-    # deployment that are not present in this repo. Skip migrate-time
-    # validation so startup doesn't fail on the missing local files.
-    validate-on-migrate: false
     locations: classpath:db/migration
     # When false, Flyway will NOT abort startup if an already-applied migration's
     # checksum no longer matches the file on disk (e.g. a V9 file that was edited
