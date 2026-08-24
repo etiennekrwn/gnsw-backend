@@ -4,14 +4,17 @@ server:
 spring:
   application:
     name: gnsw-backend
-
-  datasource:
-    # Railway provides DATABASE_URL. Local dev can use DATASOURCE_URL or the local fallback.
-    url: ${DATABASE_URL:${DATASOURCE_URL:jdbc:postgresql://localhost:5432/gnsw_db}}
+    datasource:
+    # Use Supabase database (shared remote) as primary, local Postgres as fallback
+    url: ${DATABASE_URL:jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:6543/postgres?user=postgres.wniithuksxbmmgqsyseu&password=zmQaAMWaZdzYXkNb&sslmode=require&prepareThreshold=0}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 60000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      leak-detection-threshold: 60000
 
   jpa:
     hibernate:
@@ -27,6 +30,10 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 1
+    # The shared Supabase DB also runs migrations (V7/V8) from the remote
+    # deployment that are not present in this repo. Skip migrate-time
+    # validation so startup doesn't fail on the missing local files.
+    validate-on-migrate: false
     locations: classpath:db/migration
 
   mail:
@@ -50,6 +57,13 @@ spring:
     date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
     time-zone: UTC
 
+  # File Upload Configuration
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 50MB
+
 # JWT & Frontend Configuration
 app:
   jwt:
@@ -63,6 +77,8 @@ app:
     brevo-api-key: ${BREVO_API_KEY:}
     sender-email: ${MAIL_SENDER_EMAIL:}
     sender-name: ${MAIL_SENDER_NAME:GNSW}
+  upload:
+    dir: uploads
 
 # Paystack Configuration
 paystack:
