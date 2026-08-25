@@ -24,6 +24,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -52,10 +53,13 @@ public class NewAdminController {
     public ResponseEntity<ApiResponse<Page<Application>>> getApplications(
             @RequestParam(defaultValue = "ALL") String status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String order) {
+        PageRequest pageable = buildPageRequest(page, size, sort, order);
         Page<Application> applications;
         if ("ALL".equalsIgnoreCase(status)) {
-            applications = newApplicationService.getAllApplications(PageRequest.of(page, size));
+            applications = newApplicationService.getAllApplications(pageable);
         } else {
             ApplicationStatus appStatus;
             try {
@@ -63,7 +67,7 @@ public class NewAdminController {
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid status filter: " + status);
             }
-            applications = newApplicationService.getApplications(appStatus, PageRequest.of(page, size));
+            applications = newApplicationService.getApplications(appStatus, pageable);
         }
         return ResponseEntity.ok()
                 .body(ApiResponse.<Page<Application>>builder()
@@ -117,8 +121,11 @@ public class NewAdminController {
     @GetMapping("/members")
     public ResponseEntity<ApiResponse<Page<Map<String, Object>>>> getMembers(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<User> members = userRepository.findByStatus(UserStatus.ACCEPTED, PageRequest.of(page, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String order) {
+        PageRequest pageable = buildPageRequest(page, size, sort, order);
+        Page<User> members = userRepository.findByStatus(UserStatus.ACCEPTED, pageable);
         Page<Map<String, Object>> mapped = members.map(user -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", user.getId());
@@ -379,6 +386,27 @@ public class NewAdminController {
                         .message("Stats retrieved.")
                         .data(stats)
                         .build());
+    }
+
+    /**
+     * Builds a PageRequest with an optional safe sort. No sort is supplied (or
+     * the field is unrecognised) → defaults to {@code createdAt} descending so
+     * the newest records sit at the top, matching the admin tables' default.
+     */
+    private PageRequest buildPageRequest(int page, int size, String sort, String order) {
+        Sort.Direction dir = "asc".equalsIgnoreCase(order) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String field = "createdAt";
+        if (sort != null && !sort.isBlank()) {
+            field = switch (sort.toLowerCase()) {
+                case "firstname", "name" -> "firstName";
+                case "lastname" -> "lastName";
+                case "email" -> "email";
+                case "date", "created", "createdat" -> "createdAt";
+                case "approved", "approvedat", "joined" -> "approvedAt";
+                default -> "createdAt";
+            };
+        }
+        return PageRequest.of(page, size, Sort.by(Sort.Order.by(field).with(dir)));
     }
 
     /**
