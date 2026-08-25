@@ -1,6 +1,8 @@
 package com.gnsw.gnsw_backend.config;
 
 import com.gnsw.gnsw_backend.security.JwtAuthenticationFilter;
+import com.gnsw.gnsw_backend.security.RestAccessDeniedHandler;
+import com.gnsw.gnsw_backend.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +25,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -43,6 +47,11 @@ public class SecurityConfig {
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(ex -> ex
+                        // Missing/invalid/expired token -> 401 (triggers frontend logout).
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        // Authenticated but lacking a specific permission -> 403.
+                        .accessDeniedHandler(accessDeniedHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
