@@ -62,6 +62,17 @@ public class EmailService {
     }
 
     @Async
+    public void sendApplicationReceivedEmail(String to, String firstName, String tier,
+                                             String applicationId) {
+        Context context = new Context();
+        context.setVariable("firstName", firstName);
+        context.setVariable("tier", tier);
+        context.setVariable("applicationId", applicationId);
+        String html = templateEngine.process("application-received", context);
+        sendHtmlEmail(to, "Your GNSW Application Has Been Received", html);
+    }
+
+    @Async
     public void sendApprovalEmail(String to, String firstName, String tier,
                                    String professionalId, String token,
                                    String customMessage) {

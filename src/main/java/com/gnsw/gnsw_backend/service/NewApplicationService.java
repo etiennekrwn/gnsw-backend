@@ -145,6 +145,21 @@ public class NewApplicationService {
         // This protects against money-loss: the user's payment is always captured.
         recordPayment(paymentReference, paymentAmount, tier);
 
+        // Notify the applicant that their application was submitted successfully.
+        // Paystack separately handles the payment-confirmation email, so this is a
+        // dedicated "application received" confirmation. Runs async so it never
+        // blocks or fails the API response.
+        try {
+            emailService.sendApplicationReceivedEmail(
+                    application.getEmail(),
+                    application.getFirstName(),
+                    tier.name(),
+                    application.getId().toString());
+        } catch (Exception e) {
+            log.error("Failed to send application-received email to {}: {}",
+                    application.getEmail(), e.getMessage());
+        }
+
         return application;
     }
 
