@@ -21,17 +21,30 @@ public class OtpService {
 
     public void generateAndSendOtp(String email) {
         String normalized = EmailUtil.normalize(email);
-        String code = OtpGenerator.generateOtp();
 
-        EmailOtp otp = EmailOtp.builder()
-                .email(normalized)
-                .otpCode(code)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
-                .attempts(0)
-                .build();
+        // Idempotency guard: if an unverified, unexpired OTP already exists for
+        // this email, REUSE its code instead of minting a second one. Repeated
+        // /public/send-otp calls (double-clicks, retries, both steps firing)
+        // would otherwise generate two different codes and two emails for one
+        // flow, and only the newest code would verify. A fresh code is created
+        // only once the current one is verified, expired, or out of attempts.
+        EmailOtp otp = emailOtpRepository
+                .findTopByEmailAndVerifiedAtIsNullOrderByCreatedAtDesc(normalized)
+                .filter(candidate -> candidate.getExpiresAt() != null
+                        && candidate.getExpiresAt().isAfter(LocalDateTime.now())
+                        && candidate.getAttempts() < MAX_ATTEMPTS)
+                .orElseGet(() -> {
+                    EmailOtp fresh = EmailOtp.builder()
+                            .email(normalized)
+                            .otpCode(OtpGenerator.generateOtp())
+                            .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
+                            .attempts(0)
+                            .build();
+                    emailOtpRepository.save(fresh);
+                    return fresh;
+                });
 
-        emailOtpRepository.save(otp);
-        emailService.sendOtpEmail(normalized, code);
+        emailService.sendOtpEmail(normalized, otp.getOtpCode());
     }
 
     public void verifyOtp(String email, String code) {
