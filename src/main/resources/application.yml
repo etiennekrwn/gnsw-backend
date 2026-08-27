@@ -6,7 +6,7 @@ spring:
     name: gns-backend
   datasource:
     # Use Supabase database (shared remote) as primary, local Postgres as fallback
-    url: ${DATABASE_URL:jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:6543/postgres?user=postgres.wniithuksxbmmgqsyseu&password=zmQaAMWaZdzYXkNb&sslmode=require&prepareThreshold=0}
+    url: ${DATABASE_URL:jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:5432/postgres?user=postgres.wniithuksxbmmgqsyseu&password=zmQaAMWaZdzYXkNb&sslmode=require&prepareThreshold=0}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
