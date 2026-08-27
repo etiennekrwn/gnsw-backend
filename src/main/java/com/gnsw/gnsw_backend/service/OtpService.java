@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -18,8 +19,19 @@ public class OtpService {
 
     private static final int OTP_EXPIRY_MINUTES = 10;
     private static final int MAX_ATTEMPTS = 5;
+    // How long a member must wait before requesting another OTP. The deadline is
+    // computed from server time so the countdown keeps running even when the
+    // client tab is hidden or the browser is backgrounded.
+    private static final long RESEND_COOLDOWN_SECONDS = 60;
 
-    public void generateAndSendOtp(String email) {
+    /**
+     * Sends (or reuses) an OTP for the given email.
+     *
+     * @return the epoch-millisecond timestamp at which a resend becomes available.
+     *         The client derives its countdown from this server value, so the
+     *         timer is accurate across tab switches, reloads and backgrounding.
+     */
+    public long generateAndSendOtp(String email) {
         String normalized = EmailUtil.normalize(email);
 
         // Idempotency guard: if an unverified, unexpired OTP already exists for
@@ -45,6 +57,15 @@ public class OtpService {
                 });
 
         emailService.sendOtpEmail(normalized, otp.getOtpCode());
+
+        // Resend availability is anchored to server time. If the reused OTP's
+        // cooldown has already elapsed, grant a fresh 60s window from now.
+        LocalDateTime base = otp.getCreatedAt() != null ? otp.getCreatedAt() : LocalDateTime.now();
+        LocalDateTime availableAt = base.plusSeconds(RESEND_COOLDOWN_SECONDS);
+        if (availableAt.isBefore(LocalDateTime.now())) {
+            availableAt = LocalDateTime.now().plusSeconds(RESEND_COOLDOWN_SECONDS);
+        }
+        return availableAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 
     public void verifyOtp(String email, String code) {

@@ -40,12 +40,12 @@ public class NewPublicController {
         String email = EmailUtil.normalize(request.getEmail());
         // Check if email already has an application or user account
         newApplicationService.checkEmailAvailable(email);
-        otpService.generateAndSendOtp(email);
+        long resendAvailableAt = otpService.generateAndSendOtp(email);
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
                         .message("OTP sent to your email.")
-                        .data(Map.of("email", email))
+                        .data(Map.of("email", email, "resendAvailableAt", resendAvailableAt))
                         .build());
     }
 
