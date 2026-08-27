@@ -6,7 +6,11 @@ spring:
     name: gns-backend
   datasource:
     # Use Supabase database (shared remote) as primary, local Postgres as fallback
-    url: ${DATABASE_URL:jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:5432/postgres?user=postgres.wniithuksxbmmgqsyseu&password=zmQaAMWaZdzYXkNb&sslmode=require&prepareThreshold=0}
+    # Database connection string, injected via the DATABASE_URL env var.
+    # In Railway: link the PostgreSQL service (Settings -> Link Variable) which auto-injects DATABASE_URL.
+    # For Supabase use the transactional pooler (port 6543) and include sslmode=require.
+    # No credentials are hardcoded in source -- see .env.example.
+    url: ${DATABASE_URL}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
