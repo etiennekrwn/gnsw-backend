@@ -1,10 +1,10 @@
-package com.gns.gns_backend;
+package com.gnsw.gnsw_backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class GnsBackendApplicationTests {
+class GnswBackendApplicationTests {
 
 	@Test
 	void contextLoads() {

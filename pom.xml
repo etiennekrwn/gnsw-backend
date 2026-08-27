@@ -8,10 +8,10 @@
 		<version>3.2.5</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.gns</groupId>
-	<artifactId>gns-backend</artifactId>
+	<groupId>com.gnsw</groupId>
+	<artifactId>gnsw-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>GNS Backend</name>
+	<name>GNSW Backend</name>
 	<description>Backend API for the Guild of Nigerian Speechwriters</description>
 	<properties>
 		<java.version>17</java.version>

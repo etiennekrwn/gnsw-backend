@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: gns-backend
+    name: gnsw-backend
   datasource:
     # Use Supabase database (shared remote) as primary, local Postgres as fallback
     # Database connection string, injected via the DATABASE_URL env var.

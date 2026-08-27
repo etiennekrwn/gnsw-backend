@@ -3,7 +3,7 @@
 -- IMPORTANT: Change this password after first login!
 
 INSERT INTO users (id, email, first_name, last_name, address_line1, city, state_province, zip_postal_code, country, tier, status, role, password_hash, username, created_at, updated_at)
-VALUES (gen_random_uuid(), 'admin@gns.ng', 'Super', 'Admin', 'GNS HQ', 'Lagos', 'Lagos State', '100001', 'Nigeria', 'FELLOW', 'ACCEPTED', 'ROLE_ADMIN',
+VALUES (gen_random_uuid(), 'admin@gnsw.ng', 'Super', 'Admin', 'GNS HQ', 'Lagos', 'Lagos State', '100001', 'Nigeria', 'FELLOW', 'ACCEPTED', 'ROLE_ADMIN',
 '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin', NOW(), NOW())
 ON CONFLICT (email) DO NOTHING;
 -- =========================================================================
@@ -21,7 +21,7 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=1400',
 'Featured', 'Leadership', 5, 87, 412, 9, TRUE, 'PUBLISHED', NOW() - INTERVAL '2 days', NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'How Clear Briefings Help Leaders Make Better Decisions');
 
 INSERT INTO articles (id, author_id, title, excerpt, content, tags, thumbnail_url, image_url, tag, category, read_time, claps, views, comment_count, featured, status, published_at, created_at, updated_at)
@@ -33,7 +33,7 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=1400',
 'For You', 'Culture', 4, 43, 208, 4, FALSE, 'PUBLISHED', NOW() - INTERVAL '4 days', NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'Writing Speeches That Sound Human on Stage');
 INSERT INTO articles (id, author_id, title, excerpt, content, tags, thumbnail_url, image_url, tag, category, read_time, claps, views, comment_count, featured, status, published_at, created_at, updated_at)
 SELECT gen_random_uuid(), u.id,
@@ -44,7 +44,7 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&q=80&w=1400',
 'For You', 'Politics', 6, 121, 533, 14, FALSE, 'PUBLISHED', NOW() - INTERVAL '1 day', NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'The First Hour After a Public Crisis');
 
 INSERT INTO articles (id, author_id, title, excerpt, content, tags, thumbnail_url, image_url, tag, category, read_time, claps, views, comment_count, featured, status, published_at, created_at, updated_at)
@@ -56,7 +56,7 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&q=80&w=1400',
 'Latest', 'Economy', 5, 64, 310, 6, FALSE, 'PUBLISHED', NOW() - INTERVAL '3 hours', NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'Turning Policy Detail Into Public Meaning');
 
 INSERT INTO articles (id, author_id, title, excerpt, content, tags, thumbnail_url, image_url, tag, category, read_time, claps, views, comment_count, featured, status, published_at, created_at, updated_at)
@@ -68,7 +68,7 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1400',
 'Trending', 'Leadership', 7, 150, 640, 21, TRUE, 'PUBLISHED', NOW() - INTERVAL '6 hours', NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'What Executive Writers Can Learn From Town Halls');
 
 INSERT INTO articles (id, author_id, title, excerpt, content, tags, thumbnail_url, image_url, tag, category, read_time, claps, views, comment_count, featured, status, published_at, created_at, updated_at)
@@ -80,7 +80,7 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&q=80&w=1400',
 'For You', 'Writing', 4, 38, 176, 3, FALSE, 'PUBLISHED', NOW() - INTERVAL '5 hours', NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'Approval-Ready Drafts for Busy Reviewers');
 
 -- A submission waiting for admin moderation (visible in the admin Pending Articles screen)
@@ -93,5 +93,5 @@ SELECT gen_random_uuid(), u.id,
 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=900',
 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=1400',
 'For You', 'Ethics', 3, 0, 0, 0, FALSE, 'PENDING_REVIEW', NULL, NOW(), NOW()
-FROM users u WHERE u.email = 'admin@gns.ng'
+FROM users u WHERE u.email = 'admin@gnsw.ng'
 AND NOT EXISTS (SELECT 1 FROM articles a WHERE a.title = 'The Language of Trust in Public Addresses');
