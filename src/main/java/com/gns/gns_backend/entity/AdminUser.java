@@ -72,8 +72,8 @@ public class AdminUser {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
-    @Column
-    private String theme;
+    @Column(nullable = false, length = 10)
+    private String theme = "LIGHT";
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -87,6 +87,7 @@ public class AdminUser {
         updatedAt = LocalDateTime.now();
         if (role == null) role = AdminRole.MANAGER;
         if (status == null) status = AdminStatus.INVITED;
+        if (theme == null || theme.isBlank()) theme = "LIGHT";
     }
 
     @PreUpdate
