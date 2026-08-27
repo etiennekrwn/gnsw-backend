@@ -246,7 +246,7 @@ public class ArticleService {
         return ArticleAuthor.builder()
                 .id(user.getId().toString())
                 .name(name.isEmpty() ? user.getUsername() : name)
-                .role("GNS " + tierLabel)
+                .role("GNSW " + tierLabel)
                 .credential(member != null && member.getOrganisation() != null ? member.getOrganisation() : "")
                 .bio(bio)
                 .initials(initials.isEmpty() ? "GN" : initials)

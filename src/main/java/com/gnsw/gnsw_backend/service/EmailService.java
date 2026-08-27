@@ -33,7 +33,7 @@ public class EmailService {
     @Value("${app.mail.sender-email:}")
     private String fromEmail;
 
-    @Value("${app.mail.sender-name:GNS}")
+    @Value("${app.mail.sender-name:GNSW}")
     private String fromName;
 
     @Value("${app.frontend.member-portal-url}")
@@ -48,7 +48,7 @@ public class EmailService {
 
     @Async
     public void sendOtpEmail(String to, String otpCode) {
-        sendEmail(to, "Verify Your Email — GNS Membership Application",
+        sendEmail(to, "Verify Your Email — GNSW Membership Application",
                 "otp-email", "otpCode", otpCode);
     }
 
@@ -58,7 +58,7 @@ public class EmailService {
         context.setVariable("tier", tier);
         context.setVariable("amount", amount);
         String html = templateEngine.process("payment-confirmation", context);
-        sendHtmlEmail(to, "Payment Received — GNS Application Under Review", html);
+        sendHtmlEmail(to, "Payment Received — GNSW Application Under Review", html);
     }
 
     @Async
@@ -69,7 +69,7 @@ public class EmailService {
         context.setVariable("tier", tier);
         context.setVariable("applicationId", applicationId);
         String html = templateEngine.process("application-received", context);
-        sendHtmlEmail(to, "Your GNS Application Has Been Received", html);
+        sendHtmlEmail(to, "Your GNSW Application Has Been Received", html);
     }
 
     @Async
@@ -92,7 +92,7 @@ public class EmailService {
         context.setVariable("firstName", firstName);
         context.setVariable("reason", reason);
         String html = templateEngine.process("rejection-email", context);
-        sendHtmlEmail(to, "Update on Your GNS Membership Application", html);
+        sendHtmlEmail(to, "Update on Your GNSW Membership Application", html);
     }
 
     @Async
@@ -101,7 +101,7 @@ public class EmailService {
         context.setVariable("username", username);
         context.setVariable("loginUrl", memberPortalUrl + "/login");
         String html = templateEngine.process("password-set-confirmation", context);
-        sendHtmlEmail(to, "Your GNS Account is Now Active", html);
+        sendHtmlEmail(to, "Your GNSW Account is Now Active", html);
     }
 
     @Async
@@ -110,7 +110,7 @@ public class EmailService {
         context.setVariable("firstName", firstName);
         context.setVariable("resetUrl", memberPortalUrl + "/reset-password?token=" + token);
         String html = templateEngine.process("reset-password", context);
-        sendHtmlEmail(to, "Reset Your GNS Password", html);
+        sendHtmlEmail(to, "Reset Your GNSW Password", html);
     }
 
     /**
@@ -126,7 +126,7 @@ public class EmailService {
         context.setVariable("modulesLabel", modulesLabel == null ? "" : modulesLabel);
         context.setVariable("acceptUrl", adminUrl + "/accept-invite?token=" + token + "&email=" + to);
         String html = templateEngine.process("admin-invite", context);
-        sendHtmlEmail(to, "You've been invited to the GNS Admin Console", html);
+        sendHtmlEmail(to, "You've been invited to the GNSW Admin Console", html);
     }
 
     private void sendEmail(String to, String subject, String template,

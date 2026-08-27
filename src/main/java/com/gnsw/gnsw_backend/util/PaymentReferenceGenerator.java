@@ -10,6 +10,6 @@ public class PaymentReferenceGenerator {
         int randomPart = 100000 + RANDOM.nextInt(900000);
         String timePart = String.valueOf(System.currentTimeMillis());
         String last4 = timePart.substring(timePart.length() - 4);
-        return "GNS-" + randomPart + "-" + last4;
+        return "GNSW-" + randomPart + "-" + last4;
     }
 }

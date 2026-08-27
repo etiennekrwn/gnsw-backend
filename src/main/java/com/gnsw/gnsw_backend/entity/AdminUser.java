@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * A GNS admin-console account. Fully decoupled from the member {@link User}
+ * A GNSW admin-console account. Fully decoupled from the member {@link User}
  * table: admins log in through a separate portal with their own identity.
  *
  * Role model:

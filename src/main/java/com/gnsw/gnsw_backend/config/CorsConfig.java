@@ -30,7 +30,7 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Restrict CORS to the three GNS frontends (configured via env on Railway).
+        // Restrict CORS to the three GNSW frontends (configured via env on Railway).
         // allowedOriginPatterns(...) works with allowCredentials(true), unlike setAllowedOrigins.
         config.setAllowedOriginPatterns(List.of(
                 // Configured frontend origins (from backend env vars).

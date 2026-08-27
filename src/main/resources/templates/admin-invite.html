@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GNS Admin Console Invitation</title>
+  <title>GNSW Admin Console Invitation</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:20px 0;">
@@ -12,7 +12,7 @@
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
           <tr>
             <td style="background-color:#111418;padding:30px 40px;text-align:center;">
-              <h1 style="color:#ffffff;font-size:24px;margin:0;font-family:Georgia,'Times New Roman',serif;">GNS Admin</h1>
+              <h1 style="color:#ffffff;font-size:24px;margin:0;font-family:Georgia,'Times New Roman',serif;">GNSW Admin</h1>
               <p style="color:#d86d70;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Guild of Nigerian Speechwriters</p>
             </td>
           </tr>
@@ -23,7 +23,7 @@
                 Hi <strong th:text="${displayName}">Admin</strong>,
               </p>
               <p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 16px;">
-                You have been granted access to the GNS administrative console with the role of
+                You have been granted access to the GNSW administrative console with the role of
                 <strong style="color:#111418;" th:text="${roleLabel}">Administrator</strong>.
               </p>
               <div th:if="${modulesLabel != null and !modulesLabel.isEmpty()}" style="background-color:#f8f8f8;border-radius:8px;padding:20px;margin-bottom:24px;">
@@ -38,7 +38,7 @@
               </div>
               <p style="color:#999;font-size:12px;line-height:1.5;margin:0;">
                 This link is for <strong th:text="${acceptMail:''}">your email account</strong> only, is valid for
-                <strong>72 hours</strong>, and can be used once. If you weren't expecting this, please ignore it and contact the GNS Super Admin.
+                <strong>72 hours</strong>, and can be used once. If you weren't expecting this, please ignore it and contact the GNSW Super Admin.
               </p>
             </td>
           </tr>

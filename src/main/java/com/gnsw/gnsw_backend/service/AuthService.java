@@ -99,7 +99,7 @@ public class AuthService {
             return Map.of(
                     "valid", false,
                     "status", "INVALID",
-                    "message", "This activation link is not valid. Please contact the GNS admin for assistance."
+                    "message", "This activation link is not valid. Please contact the GNSW admin for assistance."
             );
         }
 
@@ -120,7 +120,7 @@ public class AuthService {
                     "valid", false,
                     "status", "EXPIRED",
                     "email", user.getEmail(),
-                    "message", "This activation link has expired. Please contact the GNS admin for a new link."
+                    "message", "This activation link has expired. Please contact the GNSW admin for a new link."
             );
         }
 

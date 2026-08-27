@@ -426,7 +426,7 @@ public class NewAdminController {
     }
 
     private String generateProfessionalId(MembershipTier tier) {
-        String yearPrefix = "GNS-" + Year.now().getValue() + "-";
+        String yearPrefix = "GNSW-" + Year.now().getValue() + "-";
         String maxId = userRepository.findMaxProfessionalIdByYearPrefix(yearPrefix);
         int nextNumber = 1;
         if (maxId != null && !maxId.isEmpty()) {

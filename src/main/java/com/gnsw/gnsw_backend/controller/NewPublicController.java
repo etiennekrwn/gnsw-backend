@@ -161,7 +161,7 @@ public class NewPublicController {
         private String socials;
         @NotBlank(message = "A professional bio is required")
         private String bio;
-        @NotBlank(message = "Please tell us why you want to join GNS")
+        @NotBlank(message = "Please tell us why you want to join GNSW")
         private String reasonForJoining;
         @NotBlank(message = "Sectors are required")
         private String sectors;

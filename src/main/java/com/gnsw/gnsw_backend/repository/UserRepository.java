@@ -47,7 +47,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
            "GROUP BY FUNCTION('to_char', u.approvedAt, 'YYYY-MM') ORDER BY ym")
     List<Object[]> countAcceptedByMonth();
 
-    @Query("SELECT COALESCE(MAX(u.professionalId), 'GNS-0000-000') FROM User u WHERE u.professionalId LIKE ?1%")
+    @Query("SELECT COALESCE(MAX(u.professionalId), 'GNSW-0000-000') FROM User u WHERE u.professionalId LIKE ?1%")
     String findMaxProfessionalIdByYearPrefix(String yearPrefix);
 
     /**
@@ -55,6 +55,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Postgres advisory (transaction-scoped) lock. The lock is held until the
      * surrounding transaction commits or rolls back.
      */
-    @Query(value = "SELECT pg_advisory_xact_lock(hashtext('gns_professional_id_seq'))", nativeQuery = true)
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext('gnsw_professional_id_seq'))", nativeQuery = true)
     void lockProfessionalIdSequence();
 }

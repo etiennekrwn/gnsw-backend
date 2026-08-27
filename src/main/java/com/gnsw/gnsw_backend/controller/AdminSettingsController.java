@@ -62,11 +62,11 @@ public class AdminSettingsController {
                 .orElseGet(() -> guildSettingRepository.save(GuildSetting.builder()
                         .id(GuildSetting.SINGLETON_ID)
                         .registrationOpen(true)
-                        .portalName("GNS Members Portal")
+                        .portalName("GNSW Members Portal")
                         .accentColor("#111418")
                         .footerText("© 2026 Guild of Nigerian Speechwriters. All rights reserved.")
                         .guildName("Guild of Nigerian Speechwriters")
-                        .idPrefix("GNS")
+                        .idPrefix("GNSW")
                         .build()));
     }
 

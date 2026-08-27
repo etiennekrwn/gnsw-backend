@@ -55,9 +55,9 @@ public class GuildSetting {
         updatedAt = LocalDateTime.now();
         if (id == null) id = SINGLETON_ID;
         if (registrationOpen == null) registrationOpen = true;
-        if (portalName == null || portalName.isBlank()) portalName = "GNS Members Portal";
+        if (portalName == null || portalName.isBlank()) portalName = "GNSW Members Portal";
         if (accentColor == null || accentColor.isBlank()) accentColor = "#111418";
         if (guildName == null || guildName.isBlank()) guildName = "Guild of Nigerian Speechwriters";
-        if (idPrefix == null || idPrefix.isBlank()) idPrefix = "GNS";
+        if (idPrefix == null || idPrefix.isBlank()) idPrefix = "GNSW";
     }
 }

@@ -90,7 +90,7 @@ app:
     # Brevo REST API (not SMTP — Railway blocks outbound SMTP on free/hobby plans)
     brevo-api-key: ${BREVO_API_KEY:}
     sender-email: ${MAIL_SENDER_EMAIL:}
-    sender-name: ${MAIL_SENDER_NAME:GNS}
+    sender-name: ${MAIL_SENDER_NAME:GNSW}
   upload:
     dir: uploads
 
@@ -106,5 +106,5 @@ paystack:
 # Logging
 logging:
   level:
-    com.gns: ${LOG_LEVEL_COM_GNS:DEBUG}
+    com.gnsw: ${LOG_LEVEL_COM_GNSW:DEBUG}
     org.springframework.security: ${LOG_LEVEL_SECURITY:INFO}
