@@ -13,4 +13,4 @@
 
 [deploy]
   # Run the built jar. Must bind to the Railway-injected $PORT.
-  startCommand = "java -Dserver.port=$PORT -jar target/gnsw-backend-0.0.1-SNAPSHOT.jar"
+  startCommand = "java -Dserver.port=$PORT -jar target/gns-backend-0.0.1-SNAPSHOT.jar"

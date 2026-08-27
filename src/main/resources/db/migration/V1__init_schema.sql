@@ -1,4 +1,4 @@
--- V1: Initial GNSW schema.
+-- V1: Initial GNS schema.
 -- Allows fresh deployments to bootstrap the full database (the app is configured
 -- with ddl-auto=validate, so the schema must exist before startup).
 -- Every statement is guarded with IF NOT EXISTS so this migration is a safe

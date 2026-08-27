@@ -22,13 +22,13 @@ CREATE TABLE IF NOT EXISTS member_preferences (
 CREATE TABLE IF NOT EXISTS guild_settings (
     id BIGINT PRIMARY KEY,
     registration_open BOOLEAN NOT NULL DEFAULT TRUE,
-    portal_name VARCHAR(120) NOT NULL DEFAULT 'GNSW Members Portal',
+    portal_name VARCHAR(120) NOT NULL DEFAULT 'GNS Members Portal',
     accent_color VARCHAR(20) NOT NULL DEFAULT '#111418',
     footer_text VARCHAR(500) NOT NULL DEFAULT '© 2026 Guild of Nigerian Speechwriters. All rights reserved.',
     guild_name VARCHAR(120) NOT NULL DEFAULT 'Guild of Nigerian Speechwriters',
     contact_email VARCHAR(255),
     contact_phone VARCHAR(40),
     address VARCHAR(255),
-    id_prefix VARCHAR(20) NOT NULL DEFAULT 'GNSW',
+    id_prefix VARCHAR(20) NOT NULL DEFAULT 'GNS',
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
