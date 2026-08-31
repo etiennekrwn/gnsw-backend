@@ -3,19 +3,17 @@ package com.gnsw.gnsw_backend.service;
 import com.gnsw.gnsw_backend.entity.Application;
 import com.gnsw.gnsw_backend.entity.Member;
 import com.gnsw.gnsw_backend.entity.MemberSubscription;
-import com.gnsw.gnsw_backend.entity.Payment;
 import com.gnsw.gnsw_backend.entity.User;
 import com.gnsw.gnsw_backend.enums.ApplicationStatus;
 import com.gnsw.gnsw_backend.enums.MembershipTier;
-import com.gnsw.gnsw_backend.enums.PaymentStatus;
 import com.gnsw.gnsw_backend.enums.UserStatus;
 import com.gnsw.gnsw_backend.event.ApplicationApprovedEvent;
 import com.gnsw.gnsw_backend.repository.ApplicationRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
 import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
-import com.gnsw.gnsw_backend.repository.PaymentRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
 import com.gnsw.gnsw_backend.util.EmailUtil;
+import com.gnsw.gnsw_backend.util.MembershipFees;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +21,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -39,7 +36,6 @@ public class NewApplicationService {
     private final ApplicationRepository applicationRepository;
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
-    private final PaymentRepository paymentRepository;
     private final MemberSubscriptionRepository memberSubscriptionRepository;
     private final EmailService emailService;
     private final PaymentService paymentService;
@@ -69,8 +65,10 @@ public class NewApplicationService {
     }
 
     /**
-     * Create an application after successful payment.
-     * This is the ONLY place an application record is created.
+     * Create an application (free, no payment). This is the ONLY place an
+     * application record is created. Under the new model the applicant is NOT
+     * charged at submission; the annual membership fee is collected on the
+     * members portal only after the application is accepted.
      */
     @Transactional
     public Application createApplication(String firstName, String lastName, String email,
@@ -81,26 +79,13 @@ public class NewApplicationService {
                                           String linkedInProfile, String socials,
                                           String bio, String reasonForJoining,
                                           String sectors, String speechTypes, String languages,
-                                          String membershipTier,
-                                          String paymentReference, int paymentAmount) {
+                                          String membershipTier) {
         // Check if email already has an application (REJECTED ones may be reused).
         String normalizedEmail = EmailUtil.normalize(email);
         Optional<Application> existing = applicationRepository.findByEmail(normalizedEmail);
         boolean reapply = existing.isPresent() && existing.get().getStatus() == ApplicationStatus.REJECTED;
         if (existing.isPresent() && !reapply) {
             throw new IllegalArgumentException("An application with this email already exists.");
-        }
-
-        // Verify the payment with Paystack before creating the application.
-        // Skip verification for demo/test references (e.g. DEMO-REF-*) so the
-        // application + payment record can be created without a real Paystack charge.
-        String authorizationCode = null;
-        if (!paymentReference.startsWith("DEMO-")) {
-            try {
-                authorizationCode = paymentService.verifyPaymentByReference(paymentReference, paymentAmount);
-            } catch (Exception e) {
-                throw new RuntimeException("Payment verification failed: " + e.getMessage());
-            }
         }
 
         MembershipTier tier = MembershipTier.valueOf(membershipTier);
@@ -125,11 +110,12 @@ public class NewApplicationService {
         application.setLanguages(languages);
         application.setMembershipTier(tier);
         application.setStatus(ApplicationStatus.PENDING);
-        application.setPaymentReference(paymentReference);
-        application.setPaymentAmount(paymentAmount);
-        application.setPaymentStatus("SUCCESS");
+        // No payment is collected at submission, so payment fields stay clear.
+        application.setPaymentReference(null);
+        application.setPaymentAmount(null);
+        application.setPaymentStatus(null);
         application.setEmailVerified(true);
-        application.setAuthorizationCode(authorizationCode);
+        application.setAuthorizationCode(null);
         // Reset review state - this may be a re-application (REJECTED -> PENDING).
         application.setReviewedAt(null);
         application.setReviewedBy(null);
@@ -140,15 +126,9 @@ public class NewApplicationService {
 
         application = applicationRepository.save(application);
 
-        // Record the payment in its OWN transaction (REQUIRES_NEW) so that a payment
-        // failure can NEVER roll back the application creation, and vice versa.
-        // This protects against money-loss: the user's payment is always captured.
-        recordPayment(paymentReference, paymentAmount, tier);
-
         // Notify the applicant that their application was submitted successfully.
-        // Paystack separately handles the payment-confirmation email, so this is a
-        // dedicated "application received" confirmation. Runs async so it never
-        // blocks or fails the API response.
+        // Under the free-application model there is no payment step here.
+        // Runs async so it never blocks or fails the API response.
         try {
             emailService.sendApplicationReceivedEmail(
                     application.getEmail(),
@@ -161,32 +141,6 @@ public class NewApplicationService {
         }
 
         return application;
-    }
-
-    /**
-     * Record a successful payment in its own independent transaction.
-     * Runs separately from application creation so a failure in either
-     * does not lose the other. Skips duplicates by reference.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordPayment(String paymentReference, int paymentAmount, MembershipTier tier) {
-        try {
-            if (paymentRepository.findByReference(paymentReference).isEmpty()) {
-                Payment payment = Payment.builder()
-                        .reference(paymentReference)
-                        .amount(paymentAmount)
-                        .tier(tier)
-                        .status(PaymentStatus.SUCCESS)
-                        .paidAt(LocalDateTime.now())
-                        .build();
-                paymentRepository.save(payment);
-                log.info("Payment recorded: {} ({})", paymentAmount, paymentReference);
-            } else {
-                log.warn("Payment with reference {} already exists; skipping duplicate record.", paymentReference);
-            }
-        } catch (Exception e) {
-            log.error("Failed to record payment {}: {}", paymentReference, e.getMessage());
-        }
     }
 
     /**
@@ -256,51 +210,22 @@ public class NewApplicationService {
                 .build();
         memberRepository.save(member);
 
-        // Deferred subscription billing: the applicant paid a one-off fee at checkout.
-        // The Paystack subscription is created NOW so the first renewal lands one year
-        // after approval (the annual cycle starts counting from approval, unlimited
-        // renewals). Legacy in-flight subscriptions created by the old plan-at-checkout
-        // flow are cancelled first so their cycle is re-anchored to approval.
-        LocalDateTime startDate = LocalDateTime.now().plusYears(1);
-        String subscriptionCode = null;
-        String planCode = null;
-        String emailToken = application.getEmailToken();
-        String authorizationCode = application.getAuthorizationCode();
-
-        if (authorizationCode != null && !authorizationCode.isBlank()) {
-            String legacyCode = application.getSubscriptionCode();
-            if (legacyCode != null && !legacyCode.isBlank()) {
-                try {
-                    paymentService.cancelSubscription(legacyCode);
-                } catch (Exception e) {
-                    log.error("Failed to cancel legacy subscription {}: {}", legacyCode, e.getMessage());
-                }
-            }
-            try {
-                var sub = paymentService.createSubscription(
-                        application.getEmail(),
-                        application.getMembershipTier().name(),
-                        authorizationCode,
-                        startDate);
-                subscriptionCode = sub.subscriptionCode();
-                planCode = sub.planCode();
-                startDate = sub.nextPaymentDate();
-            } catch (Exception e) {
-                // Never fail approval because of a subscription issue; log it so it
-                // can be reconciled later.
-                log.error("Failed to create Paystack subscription for {}: {}",
-                        application.getEmail(), e.getMessage());
-            }
-        }
-
-        createMemberSubscription(user, application, subscriptionCode, planCode, emailToken, startDate);
+        // First subscription (annual dues) is NOT created on approval. Under the
+        // free-application model we have no stored card authorization yet. Instead we
+        // create a "payment_due" subscription marker. The accepted member is directed to
+        // the members portal pay-wall, pays their first annual fee, and only THEN is the
+        // Paystack subscription created (from the authorization captured on that payment)
+        // and the marker flipped to "active". The member stays in "payment_due" (pay-wall
+        // always shown, no expiry) until they pay.
+        String tierName = application.getMembershipTier().name();
+        ensurePaymentDueSubscription(user.getId(), tierName);
 
         // Update application status
         application.setStatus(ApplicationStatus.APPROVED);
         application.setReviewedAt(LocalDateTime.now());
         application.setReviewedBy(adminId);
-        application.setSubscriptionCode(subscriptionCode);
-        application.setPlanCode(planCode);
+        application.setSubscriptionCode(null);
+        application.setPlanCode(getPlanCode(tierName));
         applicationRepository.save(application);
 
         // Publish an AFTER_COMMIT event so the welcome email is only sent once
@@ -318,7 +243,8 @@ public class NewApplicationService {
         applicationEventPublisher.publishEvent(new ApplicationApprovedEvent(
                 user.getEmail(), user.getFirstName(),
                 application.getMembershipTier().name(),
-                professionalId, token, customMessage));
+                professionalId, token, customMessage,
+                MembershipFees.annualFeeLabel(application.getMembershipTier().name())));
     }
 
     /**
@@ -392,38 +318,33 @@ public class NewApplicationService {
     }
 
     /**
-     * Create a member_subscriptions row when an application is approved.
-     * Uses the subscription captured by the Paystack webhook (subscription.create)
-     * when available; otherwise synthesizes it from the configured plan code.
+     * Creates (or keeps) the "payment_due" subscription marker for a newly
+     * accepted member. The member has NOT paid yet — the pay-wall on the members
+     * portal stays until their first annual fee is collected. The Paystack
+     * subscription (auto-renew) is created later, on that first payment, and the
+     * status flips to "active" at that point.
      */
-    private void createMemberSubscription(User user, Application application,
-                                          String subscriptionCode, String planCode,
-                                          String emailToken, LocalDateTime nextPaymentDate) {
+    private void ensurePaymentDueSubscription(UUID userId, String tierName) {
         try {
-            boolean exists = memberSubscriptionRepository.findByUserId(user.getId()).isPresent();
-            if (exists) {
-                log.info("Subscription already exists for user: {}; skipping.", user.getEmail());
+            Optional<MemberSubscription> existing = memberSubscriptionRepository.findByUserId(userId);
+            if (existing.isPresent()) {
+                log.info("Subscription already exists for user {}; leaving as-is.", userId);
                 return;
             }
 
-            if (planCode == null || planCode.isBlank() || "UNKNOWN".equals(planCode)) {
-                planCode = getPlanCode(application.getMembershipTier().name());
-            }
-
             MemberSubscription sub = MemberSubscription.builder()
-                    .userId(user.getId())
-                    .subscriptionCode(subscriptionCode)
-                    .planCode(planCode)
-                    .emailToken(emailToken)
-                    .status("active")
-                    .nextPaymentDate(nextPaymentDate)
+                    .userId(userId)
+                    .subscriptionCode(null)
+                    .planCode(getPlanCode(tierName))
+                    .status("payment_due")
+                    .nextPaymentDate(null)
                     .build();
             memberSubscriptionRepository.save(sub);
-            log.info("Member subscription created for user: {}", user.getEmail());
+            log.info("payment_due subscription marker created for user: {}", userId);
         } catch (Exception e) {
             // Never fail approval because of a subscription issue;
             // log it so it can be reconciled later.
-            log.error("Failed to create member subscription for user {}: {}", user.getEmail(), e.getMessage());
+            log.error("Failed to create payment_due marker for user {}: {}", userId, e.getMessage());
         }
     }
 

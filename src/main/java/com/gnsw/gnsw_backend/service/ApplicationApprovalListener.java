@@ -30,7 +30,8 @@ public class ApplicationApprovalListener {
                     event.tier(),
                     event.professionalId(),
                     event.token(),
-                    event.customMessage());
+                    event.customMessage(),
+                    event.annualFee());
         } catch (Exception e) {
             log.error("Failed to send approval email to {}: {}", event.email(), e.getMessage());
         }

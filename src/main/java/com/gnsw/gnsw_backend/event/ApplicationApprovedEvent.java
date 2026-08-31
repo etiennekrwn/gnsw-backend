@@ -11,5 +11,6 @@ public record ApplicationApprovedEvent(
         String tier,
         String professionalId,
         String token,
-        String customMessage) {
+        String customMessage,
+        String annualFee) {
 }

@@ -209,11 +209,52 @@ public class MemberController {
                 ? sub.getGraceStartedAt().plusDays(graceDays) : null);
         result.put("isActive", subscriptionHasAccess(sub));
         result.put("tier", user.getTier() != null ? user.getTier().name() : null);
+        result.put("paymentDue", sub != null && "payment_due".equalsIgnoreCase(sub.getStatus()));
+        result.put("annualFee", user.getTier() != null
+                ? com.gnsw.gnsw_backend.util.MembershipFees.annualFeeLabel(user.getTier().name()) : null);
 
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
                         .message("Subscription retrieved.")
+                        .data(result)
+                        .build());
+    }
+
+    /**
+     * Initialize the first membership-dues payment (pay-wall). Only valid for an
+     * accepted, authenticated member whose subscription is still "payment_due".
+     */
+    @PostMapping("/dues/init")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> initializeDues(Authentication authentication) {
+        User user = resolveUser(authentication);
+        Map<String, Object> result = paymentService.initializeDues(user.getId());
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(true)
+                        .message("Payment initialized.")
+                        .data(result)
+                        .build());
+    }
+
+    /**
+     * Finalize the first-dues payment. On success the subscription is set to
+     * "active" (with auto-renew) and the member passes the pay-wall.
+     */
+    @PostMapping("/dues/verify")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> finalizeDues(
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        Object refObj = body.get("reference");
+        if (!(refObj instanceof String reference) || reference.isBlank()) {
+            throw new IllegalArgumentException("Payment reference is required.");
+        }
+        User user = resolveUser(authentication);
+        Map<String, Object> result = paymentService.finalizeDues(user.getId(), reference);
+        return ResponseEntity.ok()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                        .success("SUCCESS".equals(result.get("status")))
+                        .message((String) result.get("message"))
                         .data(result)
                         .build());
     }

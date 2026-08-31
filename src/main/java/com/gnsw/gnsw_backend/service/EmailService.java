@@ -75,11 +75,12 @@ public class EmailService {
     @Async
     public void sendApprovalEmail(String to, String firstName, String tier,
                                    String professionalId, String token,
-                                   String customMessage) {
+                                   String customMessage, String annualFee) {
         Context context = new Context();
         context.setVariable("firstName", firstName);
         context.setVariable("tier", tier);
         context.setVariable("professionalId", professionalId);
+        context.setVariable("annualFee", annualFee);
         context.setVariable("setPasswordUrl", memberPortalUrl + "/set-password?token=" + token + "&email=" + to);
         context.setVariable("customMessage", customMessage);
         String html = templateEngine.process("approval-email", context);

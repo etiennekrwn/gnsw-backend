@@ -32,8 +32,19 @@
                 <p style="color:#999;font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px;">Your Professional ID</p>
                 <p style="font-size:24px;font-weight:bold;color:#111418;margin:0;letter-spacing:2px;" th:text="${professionalId}">GNSW-2026-001</p>
               </div>
+              <div style="background-color:#f2f7f2;border:1px solid #dceadc;border-radius:8px;padding:20px;margin-bottom:24px;">
+                <p style="color:#111418;font-size:14px;line-height:1.6;margin:0 0 8px;">
+                  Your <strong th:text="${tier}">Associate</strong> membership carries an annual subscription of
+                  <strong th:text="${annualFee}">₦30,000</strong>, billed annually and renewable each year.
+                </p>
+                <p style="color:#555;font-size:13px;line-height:1.6;margin:0;">
+                  There is no application fee. Once you set your password and log in, you will be asked to pay this
+                  first year's subscription to unlock your full membership. Your access is activated as soon as your
+                  first payment is completed.
+                </p>
+              </div>
               <p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 16px;">
-                Click the button below to set your password and activate your account:
+                Click the button below to set your password and start your membership:
               </p>
               <div style="text-align:center;margin-bottom:24px;">
                 <a th:href="${setPasswordUrl}" style="display:inline-block;background-color:#111418;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:14px;font-weight:bold;">Set Your Password</a>

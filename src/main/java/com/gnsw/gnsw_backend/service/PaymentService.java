@@ -1,11 +1,14 @@
 package com.gnsw.gnsw_backend.service;
 
+import com.gnsw.gnsw_backend.entity.MemberSubscription;
 import com.gnsw.gnsw_backend.entity.Payment;
 import com.gnsw.gnsw_backend.entity.User;
 import com.gnsw.gnsw_backend.enums.PaymentStatus;
 import com.gnsw.gnsw_backend.repository.ApplicationRepository;
+import com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository;
 import com.gnsw.gnsw_backend.repository.PaymentRepository;
 import com.gnsw.gnsw_backend.repository.UserRepository;
+import com.gnsw.gnsw_backend.util.MembershipFees;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -210,7 +213,134 @@ public class PaymentService {
         }
     }
 
-    private final com.gnsw.gnsw_backend.repository.MemberSubscriptionRepository memberSubscriptionRepository;
+    private final MemberSubscriptionRepository memberSubscriptionRepository;
+
+    /**
+     * Initialize the FIRST membership-dues payment for an accepted member who has
+     * not yet paid (subscription status = "payment_due"). Returns the Paystack
+     * checkout reference, the annual fee (kobo) for their tier, and the hosted
+     * authorization URL for the members portal to open.
+     */
+    public Map<String, Object> initializeDues(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+        if (user.getTier() == null) {
+            throw new IllegalArgumentException("No membership tier assigned to this account.");
+        }
+        String tierName = user.getTier().name();
+        MemberSubscription sub = memberSubscriptionRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("No membership record found. Contact the administrator."));
+        if ("active".equalsIgnoreCase(sub.getStatus())) {
+            throw new IllegalArgumentException("Your membership is already active.");
+        }
+
+        int amount = MembershipFees.annualFeeKobo(tierName);
+        String reference = com.gnsw.gnsw_backend.util.PaymentReferenceGenerator.generateReference();
+
+        // Record a PENDING payment so verify can reconcile it.
+        Payment payment = Payment.builder()
+                .userId(userId)
+                .reference(reference)
+                .amount(amount)
+                .tier(user.getTier())
+                .status(PaymentStatus.PENDING)
+                .build();
+        paymentRepository.save(payment);
+
+        try {
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                    "email", user.getEmail(),
+                    "amount", amount,
+                    "reference", reference));
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.paystack.co/transaction/initialize"))
+                    .header("Authorization", "Bearer " + paystackSecretKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(response.body(), Map.class);
+            if (!Boolean.TRUE.equals(responseBody.get("status"))) {
+                throw new RuntimeException("Paystack could not initialize the payment.");
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+            return Map.of(
+                    "reference", reference,
+                    "amount", amount,
+                    "authorizationUrl", data.get("authorization_url"));
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Paystack dues initialization failed for {}: {}", user.getEmail(), e.getMessage());
+            throw new RuntimeException("Unable to start payment. Please try again.");
+        }
+    }
+
+    /**
+     * Verify the first-dues payment and, on success, activate the membership:
+     * capture the reusable card authorization, create the annual Paystack
+     * subscription (auto-renew), set the member_subscriptions row to "active"
+     * with nextPaymentDate = now + 1 year, and record the payment.
+     */
+    public Map<String, Object> finalizeDues(UUID userId, String reference) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        MemberSubscription sub = memberSubscriptionRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("No membership record found."));
+        if ("active".equalsIgnoreCase(sub.getStatus())) {
+            return Map.of("status", "SUCCESS", "message", "Your membership is already active.");
+        }
+
+        Payment payment = paymentRepository.findByReference(reference)
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found for this reference."));
+
+        // Verify with Paystack and capture the reusable authorization code.
+        String authorizationCode = verifyPaymentByReference(reference, payment.getAmount());
+
+        // 1. Record the successful payment.
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setPaidAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+
+        // 2. Create the recurring annual Paystack subscription from that authorization.
+        String tierName = user.getTier().name();
+        LocalDateTime startDate = LocalDateTime.now().plusYears(1);
+        String subscriptionCode = null;
+        String planCode = planCodeForTier(tierName);
+        try {
+            SubscriptionResult created = createSubscription(user.getEmail(), tierName, authorizationCode, startDate);
+            subscriptionCode = created.subscriptionCode();
+            planCode = created.planCode();
+        } catch (Exception e) {
+            // Do not block activation; log so it can be reconciled.
+            log.error("Failed to create Paystack subscription for {}: {}", user.getEmail(), e.getMessage());
+        }
+
+        // 3. Flip the subscription marker to active.
+        sub.setStatus("active");
+        sub.setSubscriptionCode(subscriptionCode);
+        sub.setPlanCode(planCode);
+        sub.setNextPaymentDate(subscriptionCode != null ? startDate : LocalDateTime.now().plusYears(1));
+        memberSubscriptionRepository.save(sub);
+
+        try {
+            emailService.sendPaymentConfirmation(user.getEmail(), tierName, MembershipFees.annualFeeLabel(tierName));
+        } catch (Exception e) {
+            log.error("Failed to send dues confirmation email to {}: {}", user.getEmail(), e.getMessage());
+        }
+
+        return Map.of(
+                "status", "SUCCESS",
+                "message", "Membership activated. Welcome to the Guild!",
+                "subscriptionCode", subscriptionCode,
+                "nextPaymentDate", sub.getNextPaymentDate());
+    }
 
     public record SubscriptionResult(String subscriptionCode, String planCode, LocalDateTime nextPaymentDate) {
     }

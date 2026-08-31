@@ -53,13 +53,15 @@ public class ActivationReminderJob {
             userRepository.save(user);
 
             try {
+                String tierName = user.getTier() != null ? user.getTier().name() : "MEMBER";
                 emailService.sendApprovalEmail(
                         user.getEmail(),
                         user.getFirstName(),
-                        user.getTier() != null ? user.getTier().name() : "MEMBER",
+                        tierName,
                         user.getProfessionalId(),
                         token,
-                        null);
+                        null,
+                        com.gnsw.gnsw_backend.util.MembershipFees.annualFeeLabel(tierName));
                 sent++;
             } catch (Exception e) {
                 log.error("Failed to send activation reminder to {}: {}",

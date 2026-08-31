@@ -4,7 +4,6 @@ import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.service.NewApplicationService;
 import com.gnsw.gnsw_backend.service.OtpService;
 import com.gnsw.gnsw_backend.util.EmailUtil;
-import com.gnsw.gnsw_backend.util.PaymentReferenceGenerator;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -21,7 +20,9 @@ import java.util.Map;
  * NEW flow controller.
  * Step 1: Form data held in frontend (no backend call)
  * Step 2: Send OTP → Verify OTP (by email)
- * Step 3: Payment → On success, create Application record
+ * Step 3: Submit application (free) → PENDING review
+ * The annual membership subscription is charged on the members portal AFTER
+ * the applicant is accepted (persistent pay-wall until first dues are paid).
  */
 @RestController
 @RequestMapping("/api/v1/public")
@@ -60,31 +61,21 @@ public class NewPublicController {
         newApplicationService.checkEmailAvailable(email);
         otpService.verifyOtp(email, request.getOtpCode());
 
-        String paymentRef = PaymentReferenceGenerator.generateReference();
-
-        // Calculate amount based on tier
-        int amount = switch (request.getMembershipTier()) {
-            case "AFFILIATE" -> 2100000;
-            case "ASSOCIATE" -> 3000000;
-            case "MEMBER" -> 5000000;
-            default -> throw new IllegalArgumentException("Invalid tier.");
-        };
-
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
-                        .message("Email verified successfully. Proceed to payment.")
+                        .message("Email verified successfully. You can now submit your application.")
                         .data(Map.of(
                                 "email", email,
-                                "tier", request.getMembershipTier(),
-                                "amount", amount,
-                                "paymentReference", paymentRef
+                                "tier", request.getMembershipTier()
                         ))
                         .build());
     }
 
     /**
-     * Create application AFTER successful payment.
+     * Create application (free, no payment required at submission).
+     * The annual membership subscription is charged only AFTER the applicant is
+     * accepted and completes their account setup (see the members portal pay-wall).
      */
     @PostMapping("/applications")
     public ResponseEntity<ApiResponse<Map<String, Object>>> createApplication(
@@ -107,9 +98,7 @@ public class NewPublicController {
                 request.getSectors(),
                 request.getSpeechTypes(),
                 request.getLanguages(),
-                request.getMembershipTier(),
-                request.getPaymentReference(),
-                request.getPaymentAmount()
+                request.getMembershipTier()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -171,7 +160,5 @@ public class NewPublicController {
         private String languages;
         @NotBlank @Pattern(regexp = "AFFILIATE|ASSOCIATE|MEMBER")
         private String membershipTier;
-        @NotBlank private String paymentReference;
-        private int paymentAmount;
     }
 }

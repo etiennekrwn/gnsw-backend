@@ -172,9 +172,11 @@ public class AuthService {
                 userRepository.save(user);
 
                 try {
+                    String tierName = user.getTier() != null ? user.getTier().name() : "MEMBER";
                     emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(),
-                            user.getTier() != null ? user.getTier().name() : "MEMBER",
-                            user.getProfessionalId(), token, null);
+                            tierName,
+                            user.getProfessionalId(), token, null,
+                            com.gnsw.gnsw_backend.util.MembershipFees.annualFeeLabel(tierName));
                 } catch (Exception e) {
                     // Email failure should never expose whether an account exists.
                 }
