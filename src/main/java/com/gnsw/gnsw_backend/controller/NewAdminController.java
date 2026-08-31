@@ -176,12 +176,15 @@ public class NewAdminController {
             detail.put("organisation", member.getOrganisation());
             detail.put("bio", member.getBio());
             detail.put("phone", member.getPhone());
-            detail.put("sectors", member.getSectors());
-            detail.put("speechTypes", member.getSpeechTypes());
-            detail.put("languages", member.getLanguages());
+            detail.put("currentProfessionalRole", member.getCurrentProfessionalRole());
+            detail.put("favouriteOrator", member.getFavouriteOrator());
+            detail.put("speechwritingTraining", member.getSpeechwritingTraining());
+            detail.put("trainingDetails", member.getTrainingDetails());
+            detail.put("highestQualification", member.getHighestQualification());
+            detail.put("currentJobTitle", member.getCurrentJobTitle());
+            detail.put("currentOrganization", member.getCurrentOrganization());
             detail.put("zone", member.getZone());
-            detail.put("linkedInProfile", member.getLinkedInProfile());
-            detail.put("socials", member.getSocials());
+            detail.put("socialMediaPlatform", member.getSocialMediaPlatform());
             detail.put("reasonForJoining", member.getReasonForJoining());
             detail.put("isVerified", member.isVerified());
         }

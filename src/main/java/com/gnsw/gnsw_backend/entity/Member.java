@@ -27,22 +27,31 @@ public class Member {
 
     private String phone;
 
-    @Column(columnDefinition = "TEXT")
-    private String sectors;
+    @Column(name = "current_professional_role", length = 200)
+    private String currentProfessionalRole;
 
-    @Column(name = "speech_types", columnDefinition = "TEXT")
-    private String speechTypes;
+    @Column(name = "favourite_orator", length = 300)
+    private String favouriteOrator;
 
-    @Column(columnDefinition = "TEXT")
-    private String languages;
+    @Column(name = "speechwriting_training", length = 10)
+    private String speechwritingTraining;
+
+    @Column(name = "training_details", columnDefinition = "TEXT")
+    private String trainingDetails;
+
+    @Column(name = "highest_qualification", length = 100)
+    private String highestQualification;
+
+    @Column(name = "current_job_title", length = 200)
+    private String currentJobTitle;
+
+    @Column(name = "current_organization", length = 200)
+    private String currentOrganization;
 
     private String zone;
 
-    @Column(name = "linkedin_profile", length = 500)
-    private String linkedInProfile;
-
-    @Column(name = "socials", columnDefinition = "TEXT")
-    private String socials;
+    @Column(name = "social_media_platform", columnDefinition = "TEXT")
+    private String socialMediaPlatform;
 
     @Column(name = "reason_for_joining", columnDefinition = "TEXT")
     private String reasonForJoining;

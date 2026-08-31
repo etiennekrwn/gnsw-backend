@@ -91,13 +91,16 @@ public class NewPublicController {
                 request.getZipPostalCode(),
                 request.getCountry(),
                 request.getPhone(),
-                request.getLinkedInProfile(),
-                request.getSocials(),
+                request.getSocialMediaPlatform(),
                 request.getBio(),
                 request.getReasonForJoining(),
-                request.getSectors(),
-                request.getSpeechTypes(),
-                request.getLanguages(),
+                request.getCurrentProfessionalRole(),
+                request.getFavouriteOrator(),
+                request.getSpeechwritingTraining(),
+                request.getTrainingDetails(),
+                request.getHighestQualification(),
+                request.getCurrentJobTitle(),
+                request.getCurrentOrganization(),
                 request.getMembershipTier()
         );
 
@@ -146,18 +149,20 @@ public class NewPublicController {
         @NotBlank private String country;
         private String phone;
         // Professional fields — collected during application
-        private String linkedInProfile;
-        private String socials;
-        @NotBlank(message = "A professional bio is required")
+        private String socialMediaPlatform;
+        @NotBlank(message = "A bio is required")
         private String bio;
         @NotBlank(message = "Please tell us why you want to join GNSW")
         private String reasonForJoining;
-        @NotBlank(message = "Sectors are required")
-        private String sectors;
-        @NotBlank(message = "Speech types are required")
-        private String speechTypes;
-        @NotBlank(message = "Languages are required")
-        private String languages;
+        @NotBlank(message = "Please select your current professional role")
+        private String currentProfessionalRole;
+        @NotBlank(message = "Please tell us your favourite orator")
+        private String favouriteOrator;
+        private String speechwritingTraining;
+        private String trainingDetails;
+        private String highestQualification;
+        private String currentJobTitle;
+        private String currentOrganization;
         @NotBlank @Pattern(regexp = "AFFILIATE|ASSOCIATE|MEMBER")
         private String membershipTier;
     }

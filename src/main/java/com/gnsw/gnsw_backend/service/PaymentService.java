@@ -142,7 +142,7 @@ public class PaymentService {
                         emailService.sendPaymentConfirmation(
                                 user.getEmail(),
                                 payment.getTier().name(),
-                                String.valueOf(payment.getAmount())
+                                com.gnsw.gnsw_backend.util.MembershipFees.annualFeeLabel(payment.getTier().name())
                         );
                     }
 
@@ -592,7 +592,7 @@ public class PaymentService {
                         emailService.sendPaymentConfirmation(
                                 user.getEmail(),
                                 payment.getTier().name(),
-                                String.valueOf(payment.getAmount())
+                                com.gnsw.gnsw_backend.util.MembershipFees.annualFeeLabel(payment.getTier().name())
                         );
                     }
                 }

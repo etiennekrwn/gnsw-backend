@@ -96,10 +96,8 @@ public class DirectoryService {
     private boolean filterBySpeechType(User user, String speechType) {
         if (speechType == null || speechType.isBlank() || "All".equalsIgnoreCase(speechType)) return true;
         Member member = memberRepository.findByUserId(user.getId()).orElse(null);
-        if (member == null || member.getSpeechTypes() == null) return false;
-        return Arrays.stream(member.getSpeechTypes().split(","))
-                .map(String::trim)
-                .anyMatch(t -> t.equalsIgnoreCase(speechType));
+        if (member == null || member.getCurrentProfessionalRole() == null) return false;
+        return member.getCurrentProfessionalRole().equalsIgnoreCase(speechType);
     }
 
     private boolean filterBySearch(User user, String search) {
@@ -111,12 +109,12 @@ public class DirectoryService {
                 || (user.getLastName() != null && user.getLastName().toLowerCase(Locale.ROOT).contains(query));
         boolean cityMatch = user.getCity() != null && user.getCity().toLowerCase(Locale.ROOT).contains(query);
         boolean tierMatch = user.getTier() != null && user.getTier().name().toLowerCase(Locale.ROOT).contains(query);
-        boolean speechMatch = member != null && member.getSpeechTypes() != null
-                && Arrays.stream(member.getSpeechTypes().split(","))
-                .map(String::trim)
-                .anyMatch(t -> t.toLowerCase(Locale.ROOT).contains(query));
+        boolean roleMatch = member != null && member.getCurrentProfessionalRole() != null
+                && member.getCurrentProfessionalRole().toLowerCase(Locale.ROOT).contains(query);
+        boolean jobMatch = member != null && member.getCurrentJobTitle() != null
+                && member.getCurrentJobTitle().toLowerCase(Locale.ROOT).contains(query);
 
-        return nameMatch || cityMatch || tierMatch || speechMatch;
+        return nameMatch || cityMatch || tierMatch || roleMatch || jobMatch;
     }
 
     // --- Mapping helpers ---
@@ -142,17 +140,17 @@ public class DirectoryService {
                 .tier(user.getTier() != null ? titleCase(user.getTier().name()) : null)
                 .professionalId(user.getProfessionalId())
                 .verificationDate(user.getApprovedAt() != null ? user.getApprovedAt().toString() : null)
-                .speechTypes(splitCsv(member != null ? member.getSpeechTypes() : null))
-                .sectors(splitCsv(member != null ? member.getSectors() : null))
-                .languages(splitCsv(member != null ? member.getLanguages() : null))
+                .currentProfessionalRole(member != null ? member.getCurrentProfessionalRole() : null)
+                .favouriteOrator(member != null ? member.getFavouriteOrator() : null)
                 .zone(member != null ? member.getZone() : null)
                 .profileImageUrl(member != null ? member.getProfileImageUrl() : null)
                 .organisation(member != null ? member.getOrganisation() : null)
                 .bio(bio)
                 .headline(headline)
                 .verified(member != null && member.isVerified())
-                .linkedInProfile(member != null ? member.getLinkedInProfile() : null)
-                .socials(member != null ? member.getSocials() : null)
+                .socialMediaPlatform(member != null ? member.getSocialMediaPlatform() : null)
+                .currentJobTitle(member != null ? member.getCurrentJobTitle() : null)
+                .currentOrganization(member != null ? member.getCurrentOrganization() : null)
                 .build();
     }
 

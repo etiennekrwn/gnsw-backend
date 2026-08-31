@@ -65,12 +65,15 @@ public class MemberController {
             profile.put("organisation", member.getOrganisation());
             profile.put("bio", member.getBio());
             profile.put("phone", member.getPhone());
-            profile.put("sectors", member.getSectors());
-            profile.put("speechTypes", member.getSpeechTypes());
-            profile.put("languages", member.getLanguages());
+            profile.put("currentProfessionalRole", member.getCurrentProfessionalRole());
+            profile.put("favouriteOrator", member.getFavouriteOrator());
+            profile.put("speechwritingTraining", member.getSpeechwritingTraining());
+            profile.put("trainingDetails", member.getTrainingDetails());
+            profile.put("highestQualification", member.getHighestQualification());
+            profile.put("currentJobTitle", member.getCurrentJobTitle());
+            profile.put("currentOrganization", member.getCurrentOrganization());
             profile.put("zone", member.getZone());
-            profile.put("linkedInProfile", member.getLinkedInProfile());
-            profile.put("socials", member.getSocials());
+            profile.put("socialMediaPlatform", member.getSocialMediaPlatform());
             profile.put("reasonForJoining", member.getReasonForJoining());
             profile.put("isVerified", member.isVerified());
             profile.put("memberSince", member.getCreatedAt());
@@ -144,14 +147,26 @@ public class MemberController {
         if (request.getPhone() != null) {
             member.setPhone(request.getPhone());
         }
-        if (request.getSectors() != null) {
-            member.setSectors(request.getSectors());
+        if (request.getCurrentProfessionalRole() != null) {
+            member.setCurrentProfessionalRole(request.getCurrentProfessionalRole());
         }
-        if (request.getSpeechTypes() != null) {
-            member.setSpeechTypes(request.getSpeechTypes());
+        if (request.getFavouriteOrator() != null) {
+            member.setFavouriteOrator(request.getFavouriteOrator());
         }
-        if (request.getLanguages() != null) {
-            member.setLanguages(request.getLanguages());
+        if (request.getSpeechwritingTraining() != null) {
+            member.setSpeechwritingTraining(request.getSpeechwritingTraining());
+        }
+        if (request.getTrainingDetails() != null) {
+            member.setTrainingDetails(request.getTrainingDetails());
+        }
+        if (request.getHighestQualification() != null) {
+            member.setHighestQualification(request.getHighestQualification());
+        }
+        if (request.getCurrentJobTitle() != null) {
+            member.setCurrentJobTitle(request.getCurrentJobTitle());
+        }
+        if (request.getCurrentOrganization() != null) {
+            member.setCurrentOrganization(request.getCurrentOrganization());
         }
         if (request.getZone() != null) {
             member.setZone(request.getZone());
@@ -159,11 +174,8 @@ public class MemberController {
         if (request.getProfileImageUrl() != null) {
             member.setProfileImageUrl(request.getProfileImageUrl());
         }
-        if (request.getLinkedInProfile() != null) {
-            member.setLinkedInProfile(request.getLinkedInProfile());
-        }
-        if (request.getSocials() != null) {
-            member.setSocials(request.getSocials());
+        if (request.getSocialMediaPlatform() != null) {
+            member.setSocialMediaPlatform(request.getSocialMediaPlatform());
         }
 
         memberRepository.save(member);
@@ -173,13 +185,16 @@ public class MemberController {
         profile.put("organisation", member.getOrganisation());
         profile.put("bio", member.getBio());
         profile.put("phone", member.getPhone());
-        profile.put("sectors", member.getSectors());
-        profile.put("speechTypes", member.getSpeechTypes());
-        profile.put("languages", member.getLanguages());
+        profile.put("currentProfessionalRole", member.getCurrentProfessionalRole());
+        profile.put("favouriteOrator", member.getFavouriteOrator());
+        profile.put("speechwritingTraining", member.getSpeechwritingTraining());
+        profile.put("trainingDetails", member.getTrainingDetails());
+        profile.put("highestQualification", member.getHighestQualification());
+        profile.put("currentJobTitle", member.getCurrentJobTitle());
+        profile.put("currentOrganization", member.getCurrentOrganization());
         profile.put("zone", member.getZone());
         profile.put("profileImageUrl", member.getProfileImageUrl());
-        profile.put("linkedInProfile", member.getLinkedInProfile());
-        profile.put("socials", member.getSocials());
+        profile.put("socialMediaPlatform", member.getSocialMediaPlatform());
 
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
@@ -530,23 +545,25 @@ public class MemberController {
 
         private String phone;
 
-        @Size(max = 1000)
-        private String sectors;
+        private String currentProfessionalRole;
 
-        @Size(max = 1000)
-        private String speechTypes;
+        private String favouriteOrator;
 
-        @Size(max = 500)
-        private String languages;
+        private String speechwritingTraining;
+
+        private String trainingDetails;
+
+        private String highestQualification;
+
+        private String currentJobTitle;
+
+        private String currentOrganization;
 
         private String zone;
 
         private String profileImageUrl;
 
-        @Size(max = 500)
-        private String linkedInProfile;
-
         @Size(max = 2000)
-        private String socials;
+        private String socialMediaPlatform;
     }
 }

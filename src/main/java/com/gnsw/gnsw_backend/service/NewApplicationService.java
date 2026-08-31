@@ -76,9 +76,12 @@ public class NewApplicationService {
                                           String city, String stateProvince,
                                           String zipPostalCode, String country,
                                           String phone,
-                                          String linkedInProfile, String socials,
+                                          String socialMediaPlatform,
                                           String bio, String reasonForJoining,
-                                          String sectors, String speechTypes, String languages,
+                                          String currentProfessionalRole, String favouriteOrator,
+                                          String speechwritingTraining, String trainingDetails,
+                                          String highestQualification, String currentJobTitle,
+                                          String currentOrganization,
                                           String membershipTier) {
         // Check if email already has an application (REJECTED ones may be reused).
         String normalizedEmail = EmailUtil.normalize(email);
@@ -101,13 +104,16 @@ public class NewApplicationService {
         application.setZipPostalCode(zipPostalCode);
         application.setCountry(country);
         application.setPhone(phone);
-        application.setLinkedInProfile(linkedInProfile);
-        application.setSocials(socials);
+        application.setSocialMediaPlatform(socialMediaPlatform);
         application.setBio(bio);
         application.setReasonForJoining(reasonForJoining);
-        application.setSectors(sectors);
-        application.setSpeechTypes(speechTypes);
-        application.setLanguages(languages);
+        application.setCurrentProfessionalRole(currentProfessionalRole);
+        application.setFavouriteOrator(favouriteOrator);
+        application.setSpeechwritingTraining(speechwritingTraining);
+        application.setTrainingDetails(trainingDetails);
+        application.setHighestQualification(highestQualification);
+        application.setCurrentJobTitle(currentJobTitle);
+        application.setCurrentOrganization(currentOrganization);
         application.setMembershipTier(tier);
         application.setStatus(ApplicationStatus.PENDING);
         // No payment is collected at submission, so payment fields stay clear.
@@ -201,11 +207,14 @@ public class NewApplicationService {
                 .userId(user.getId())
                 .phone(application.getPhone())
                 .bio(application.getBio())
-                .sectors(application.getSectors())
-                .speechTypes(application.getSpeechTypes())
-                .languages(application.getLanguages())
-                .linkedInProfile(application.getLinkedInProfile())
-                .socials(application.getSocials())
+                .currentProfessionalRole(application.getCurrentProfessionalRole())
+                .favouriteOrator(application.getFavouriteOrator())
+                .speechwritingTraining(application.getSpeechwritingTraining())
+                .trainingDetails(application.getTrainingDetails())
+                .highestQualification(application.getHighestQualification())
+                .currentJobTitle(application.getCurrentJobTitle())
+                .currentOrganization(application.getCurrentOrganization())
+                .socialMediaPlatform(application.getSocialMediaPlatform())
                 .reasonForJoining(application.getReasonForJoining())
                 .build();
         memberRepository.save(member);
