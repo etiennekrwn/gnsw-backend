@@ -293,6 +293,14 @@ public class NewAdminController {
                 .build();
         memberRepository.save(member);
 
+        // Manual members follow the same flow as accepted applicants: they are
+        // held on the pay-wall until their first annual dues are paid.
+        try {
+            newApplicationService.ensurePaymentDueSubscription(user.getId(), tier.name());
+        } catch (Exception e) {
+            System.err.println("Failed to create payment_due marker: " + e.getMessage());
+        }
+
         // Send welcome email with password-set link
         try {
             emailService.sendApprovalEmail(user.getEmail(), user.getFirstName(), tier.name(),

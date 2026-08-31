@@ -324,7 +324,7 @@ public class NewApplicationService {
      * subscription (auto-renew) is created later, on that first payment, and the
      * status flips to "active" at that point.
      */
-    private void ensurePaymentDueSubscription(UUID userId, String tierName) {
+    public void ensurePaymentDueSubscription(UUID userId, String tierName) {
         try {
             Optional<MemberSubscription> existing = memberSubscriptionRepository.findByUserId(userId);
             if (existing.isPresent()) {

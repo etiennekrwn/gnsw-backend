@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -218,9 +219,10 @@ public class PaymentService {
     /**
      * Initialize the FIRST membership-dues payment for an accepted member who has
      * not yet paid (subscription status = "payment_due"). Returns the Paystack
-     * checkout reference, the annual fee (kobo) for their tier, and the hosted
-     * authorization URL for the members portal to open.
+     * checkout reference, the annual fee (kobo) for their tier, the hosted
+     * authorization URL, and the access code for the in-page Paystack modal.
      */
+    @Transactional
     public Map<String, Object> initializeDues(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
@@ -232,6 +234,13 @@ public class PaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("No membership record found. Contact the administrator."));
         if ("active".equalsIgnoreCase(sub.getStatus())) {
             throw new IllegalArgumentException("Your membership is already active.");
+        }
+
+        // Void stale PENDING payment rows so a user who retries/cancels repeatedly
+        // does not accumulate a pile of orphaned transactions.
+        for (Payment stale : paymentRepository.findAllByUserIdAndStatus(userId, PaymentStatus.PENDING)) {
+            stale.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(stale);
         }
 
         int amount = MembershipFees.annualFeeKobo(tierName);
@@ -272,7 +281,8 @@ public class PaymentService {
             return Map.of(
                     "reference", reference,
                     "amount", amount,
-                    "authorizationUrl", data.get("authorization_url"));
+                    "authorizationUrl", data.get("authorization_url"),
+                    "accessCode", data.get("access_code"));
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -286,7 +296,12 @@ public class PaymentService {
      * capture the reusable card authorization, create the annual Paystack
      * subscription (auto-renew), set the member_subscriptions row to "active"
      * with nextPaymentDate = now + 1 year, and record the payment.
+     *
+     * This is idempotent: if the payment is already recorded as SUCCESS or the
+     * member is already active, it will not create a second Paystack subscription
+     * or double-charge; it simply returns the current state.
      */
+    @Transactional
     public Map<String, Object> finalizeDues(UUID userId, String reference) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
@@ -297,8 +312,19 @@ public class PaymentService {
             return Map.of("status", "SUCCESS", "message", "Your membership is already active.");
         }
 
-        Payment payment = paymentRepository.findByReference(reference)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found for this reference."));
+        // Find the payment row. Accept references that are either the latest PENDING
+        // row OR an already-SUCCESS row owned by this user (orphan recovery / reload).
+        Payment payment = paymentRepository.findByReference(reference).orElse(null);
+        if (payment == null || !payment.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("Payment not found for this reference.");
+        }
+
+        // Idempotency guard: if this payment was already recorded as SUCCESS, we
+        // must not create another subscription. Just ensure the marker is active.
+        if (payment.getStatus() == PaymentStatus.SUCCESS) {
+            ensureSubActive(sub, user.getTier().name());
+            return Map.of("status", "SUCCESS", "message", "Your membership is already active.");
+        }
 
         // Verify with Paystack and capture the reusable authorization code.
         String authorizationCode = verifyPaymentByReference(reference, payment.getAmount());
@@ -340,6 +366,20 @@ public class PaymentService {
                 "message", "Membership activated. Welcome to the Guild!",
                 "subscriptionCode", subscriptionCode,
                 "nextPaymentDate", sub.getNextPaymentDate());
+    }
+
+    /** Ensures the member's subscription marker is "active" without re-creating a Paystack subscription. */
+    private void ensureSubActive(MemberSubscription sub, String tierName) {
+        if (!"active".equalsIgnoreCase(sub.getStatus())) {
+            sub.setStatus("active");
+            if (sub.getPlanCode() == null || sub.getPlanCode().isBlank()) {
+                sub.setPlanCode(planCodeForTier(tierName));
+            }
+            if (sub.getNextPaymentDate() == null) {
+                sub.setNextPaymentDate(LocalDateTime.now().plusYears(1));
+            }
+            memberSubscriptionRepository.save(sub);
+        }
     }
 
     public record SubscriptionResult(String subscriptionCode, String planCode, LocalDateTime nextPaymentDate) {
@@ -542,6 +582,13 @@ public class PaymentService {
 
                     User user = userRepository.findById(payment.getUserId()).orElse(null);
                     if (user != null) {
+                        // Orphan recovery: if this charge was the first-dues payment.
+                        // Prior successful charge.success events already marked it SUCCESS,
+                        // so activating only when we just flipped it keeps us idempotent.
+                        MemberSubscription memberSub = memberSubscriptionRepository.findByUserId(user.getId()).orElse(null);
+                        if (memberSub != null && !"active".equalsIgnoreCase(memberSub.getStatus())) {
+                            ensureSubActive(memberSub, user.getTier() != null ? user.getTier().name() : "MEMBER");
+                        }
                         emailService.sendPaymentConfirmation(
                                 user.getEmail(),
                                 payment.getTier().name(),
