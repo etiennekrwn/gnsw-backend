@@ -65,7 +65,7 @@ public class MediaController {
      * GET /api/v1/media
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('MODULE_MEDIA')")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAllMedia() {
         List<MediaFile> mediaFiles = mediaService.getAllMedia();
         List<Map<String, Object>> mediaResponses = mediaFiles.stream()

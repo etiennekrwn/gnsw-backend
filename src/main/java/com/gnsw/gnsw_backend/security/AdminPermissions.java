@@ -38,7 +38,7 @@ public final class AdminPermissions {
     /** Modules a MANAGER is allowed to be granted (ADMIN_USERS is admin-only). */
     public static final Set<String> MANAGER_ASSIGNABLE = Set.of(
             MEMBERS, CONTENT, EVENTS, COURSES, PORTAL,
-            COMMUNICATIONS, MEDIA, REPORTS, SETTINGS);
+            COMMUNICATIONS, MEDIA);
 
     private AdminPermissions() {
     }
