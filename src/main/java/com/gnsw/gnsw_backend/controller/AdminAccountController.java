@@ -1,4 +1,4 @@
-package com.gnsw.gnsw_backend.controller;
+﻿package com.gnsw.gnsw_backend.controller;
 
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.entity.AdminUser;
@@ -98,6 +98,10 @@ public class AdminAccountController {
     }
 
     private AdminUser resolve(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof AdminUser adminUser) {
+            return adminUser;
+        }
         return adminUserRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Admin account not found."));
     }
