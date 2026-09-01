@@ -10,9 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -23,24 +20,16 @@ import java.util.UUID;
 public class MediaService {
 
     private final MediaFileRepository mediaFileRepository;
-
-    @Value("${app.upload.dir:uploads}")
-    private String uploadDir;
+    private final StorageService storageService;
 
     @Value("${app.frontend.member-portal-url:http://localhost:5175}")
     private String memberPortalUrl;
 
     /**
-     * Upload one or more files to local filesystem and persist metadata to DB.
+     * Upload one or more files to cloud storage (Supabase Storage) and persist metadata to DB.
      */
     public List<MediaFile> uploadFiles(List<MultipartFile> files, UUID uploaderId, String uploaderRole) throws IOException {
         List<MediaFile> savedFiles = new java.util.ArrayList<>();
-
-        // Ensure upload directory exists
-        Path uploadPath = Paths.get(uploadDir);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
 
         for (MultipartFile file : files) {
             if (file.isEmpty()) {
@@ -53,29 +42,19 @@ public class MediaService {
             if (originalName != null && originalName.contains(".")) {
                 extension = originalName.substring(originalName.lastIndexOf("."));
             }
-            String storedFileName = UUID.randomUUID().toString() + extension;
+            String storedFileName = UUID.randomUUID() + extension;
 
             // Determine content type
             String contentType = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
+            boolean isImage = contentType.startsWith("image/");
 
             // Read file bytes
             byte[] fileBytes = file.getBytes();
 
-            // Save to filesystem
-            Path filePath = uploadPath.resolve(storedFileName);
-            Files.write(filePath, fileBytes);
+            // Persist to Supabase Storage; get a permanent public URL.
+            String fileUrl = storageService.upload(storedFileName, fileBytes, contentType);
 
-            // Determine if image
-            boolean isImage = contentType != null && contentType.startsWith("image/");
-            String thumbnailUrl = null;
-
-            // For images, generate a thumbnail URL (same path for now)
-            String fileUrl = "/uploads/" + storedFileName;
-            if (isImage) {
-                thumbnailUrl = fileUrl;
-            }
-
-            // Create media file entity
+            // Create media file entity (stores URL only, not the bytes/base64)
             MediaFile mediaFile = MediaFile.builder()
                     .fileName(storedFileName)
                     .originalName(originalName)
@@ -83,7 +62,7 @@ public class MediaService {
                     .contentType(contentType)
                     .fileSize((long) fileBytes.length)
                     .fileUrl(fileUrl)
-                    .thumbnailUrl(thumbnailUrl)
+                    .thumbnailUrl(isImage ? fileUrl : null)
                     .uploaderId(uploaderId)
                     .uploaderRole(uploaderRole)
                     .isImage(isImage)
@@ -93,7 +72,7 @@ public class MediaService {
 
             MediaFile saved = mediaFileRepository.save(mediaFile);
             savedFiles.add(saved);
-            log.info("Uploaded file: {} -> {}", originalName, storedFileName);
+            log.info("Uploaded file: {} -> {}", originalName, fileUrl);
         }
 
         return savedFiles;
@@ -122,13 +101,10 @@ public class MediaService {
                     // Verify ownership or admin role
                     if (mediaFile.getUploaderId() != null && mediaFile.getUploaderId().equals(userId)) {
                         try {
-                            // Delete file from filesystem
-                            Path filePath = Paths.get(uploadDir, mediaFile.getFileName());
-                            if (Files.exists(filePath)) {
-                                Files.deleteIfExists(filePath);
-                            }
-                        } catch (IOException e) {
-                            log.warn("Failed to delete file {}: {}", mediaFile.getFileName(), e.getMessage());
+                            // Delete file from cloud storage
+                            storageService.delete(mediaFile.getFileName());
+                        } catch (Exception e) {
+                            log.warn("Failed to delete storage object {}: {}", mediaFile.getFileName(), e.getMessage());
                         }
                         mediaFileRepository.delete(mediaFile);
                         return true;

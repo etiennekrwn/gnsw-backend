@@ -104,6 +104,12 @@ app:
     sender-name: ${MAIL_SENDER_NAME:GNSW}
   upload:
     dir: uploads
+  storage:
+    # Supabase Storage for blog/media file uploads (public bucket -> permanent public URL).
+    # See .env.example / RAILWAY_SETUP.md. Leave blank to keep uploads local.
+    supabase-url: ${SUPABASE_STORAGE_URL:}
+    service-key: ${SUPABASE_STORAGE_SERVICE_KEY:}
+    bucket: ${SUPABASE_STORAGE_BUCKET:media}
 
 # Paystack Configuration
 paystack:
