@@ -48,7 +48,7 @@ public class EmailService {
 
     @Async
     public void sendOtpEmail(String to, String otpCode) {
-        sendEmail(to, "Verify Your Email — GNSW Membership Application",
+        sendEmail(to, "Verify Your Email ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â GNSW Membership Application",
                 "otp-email", "otpCode", otpCode);
     }
 
@@ -58,7 +58,7 @@ public class EmailService {
         context.setVariable("tier", tier);
         context.setVariable("amount", amount);
         String html = templateEngine.process("payment-confirmation", context);
-        sendHtmlEmail(to, "Payment Received — GNSW Application Under Review", html);
+        sendHtmlEmail(to, "Payment Received ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â GNSW Application Under Review", html);
     }
 
     @Async
@@ -84,7 +84,7 @@ public class EmailService {
         context.setVariable("setPasswordUrl", memberPortalUrl + "/set-password?token=" + token + "&email=" + to);
         context.setVariable("customMessage", customMessage);
         String html = templateEngine.process("approval-email", context);
-        sendHtmlEmail(to, "Welcome to the Guild of Nigerian Speechwriters! 🎉", html);
+        sendHtmlEmail(to, "Welcome to the Guild of Nigerian Speechwriters! ÃƒÂ°Ã…Â¸Ã…Â½Ã¢â‚¬Â°", html);
     }
 
     @Async
@@ -117,17 +117,24 @@ public class EmailService {
     /**
      * Onboarding email for a newly invited admin-console account. The recipient
      * sets their own password via the one-time token entered below.
+     *
+     * Synchronous (NOT @Async) on purpose: the admin UI relies on the boolean
+     * result to surface a delivery failure instead of silently reporting a
+     * successful "Invite sent" while no email actually went out. Returning false
+     * does NOT roll back the invite row ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the account is still created and can be
+     * re-invited once the email configuration (BREVO_API_KEY / MAIL_SENDER_EMAIL) is fixed.
+     *
+     * @return true iff Brevo accepted the email (HTTP 2xx).
      */
-    @Async
-    public void sendAdminInvite(String to, String displayName, String roleLabel,
-                                String modulesLabel, String token) {
+    public boolean sendAdminInvite(String to, String displayName, String roleLabel,
+                                   String modulesLabel, String token) {
         Context context = new Context();
         context.setVariable("displayName", displayName);
         context.setVariable("roleLabel", roleLabel);
         context.setVariable("modulesLabel", modulesLabel == null ? "" : modulesLabel);
         context.setVariable("acceptUrl", adminUrl + "/accept-invite?token=" + token + "&email=" + to);
         String html = templateEngine.process("admin-invite", context);
-        sendHtmlEmail(to, "You've been invited to the GNSW Admin Console", html);
+        return sendHtmlEmail(to, "You've been invited to the GNSW Admin Console", html);
     }
 
     private void sendEmail(String to, String subject, String template,
@@ -145,13 +152,22 @@ public class EmailService {
     /**
      * Sends email via Brevo's HTTPS REST API (port 443).
      * Railway blocks outbound SMTP on free/hobby plans, so SMTP (Gmail/Zoho/Brevo-SMTP)
-     * all time out. The HTTPS API is NOT blocked and works from Railway.
-     * Failures are caught and logged so they never propagate to the API caller.
+     * would time out. The HTTPS API is NOT blocked and works from Railway.
+     * Failures are caught and logged so they never propagate as exceptions, but the
+     * boolean result lets callers (notably admin invite) report delivery to the UI
+     * instead of silently pretending an email was sent.
+     *
+     * @return true iff Brevo accepted the email (HTTP 2xx); false if the API key or
+     *         sender is unconfigured, Brevo rejected the request, or the send threw.
      */
-    public void sendHtmlEmail(String to, String subject, String htmlContent) {
+    public boolean sendHtmlEmail(String to, String subject, String htmlContent) {
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
             log.error("BREVO_API_KEY not configured. Cannot send email to {}.", to);
-            return;
+            return false;
+        }
+        if (fromEmail == null || fromEmail.isBlank()) {
+            log.error("MAIL_SENDER_EMAIL not configured. Cannot send email to {}.", to);
+            return false;
         }
         try {
             Map<String, Object> payload = Map.of(
@@ -175,11 +191,14 @@ public class EmailService {
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 log.info("Email sent to {}: {} (Brevo status {})", to, subject, response.statusCode());
+                return true;
             } else {
                 log.error("Brevo send failed to {}: status {} body {}", to, response.statusCode(), response.body());
+                return false;
             }
         } catch (Exception e) {
             log.error("Failed to send email to {}: {}", to, e.getMessage());
+            return false;
         }
     }
 }

@@ -100,12 +100,17 @@ public class AdminUserManagementService {
         String label = role == AdminRole.ADMIN
                 ? "Full access (all modules)"
                 : AdminLabels.modulesLabel(AdminPermissions.allowedModules(created));
-        emailService.sendAdminInvite(created.getEmail(), created.getDisplayName(),
+        boolean emailDelivered = emailService.sendAdminInvite(created.getEmail(), created.getDisplayName(),
                 AdminLabels.roleLabel(role), label, raw);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", created.getId());
         result.put("email", created.getEmail());
+        result.put("emailDelivered", emailDelivered);
+        result.put("emailMessage", emailDelivered
+                ? "Invite email sent. The recipient will set their own password."
+                : "Admin account created, but the invite email could NOT be sent. "
+                        + "Check BREVO_API_KEY / MAIL_SENDER_EMAIL configuration, then use Resend on the row.");
         return result;
     }
 
@@ -123,8 +128,12 @@ public class AdminUserManagementService {
         String label = target.getRole() == AdminRole.ADMIN
                 ? "Full access (all modules)"
                 : AdminLabels.modulesLabel(AdminPermissions.allowedModules(target));
-        emailService.sendAdminInvite(target.getEmail(), target.getDisplayName(),
+        boolean delivered = emailService.sendAdminInvite(target.getEmail(), target.getDisplayName(),
                 AdminLabels.roleLabel(target.getRole()), label, raw);
+        if (!delivered) {
+            throw new IllegalArgumentException("The invite email could not be sent. Check BREVO_API_KEY / " +
+                    "MAIL_SENDER_EMAIL configuration and try again. The account remains INVITED.");
+        }
     }
 
     public void revokeInvite(AdminUser actor, UUID id) {

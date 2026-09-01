@@ -47,10 +47,13 @@ public class AdminUserManagementController {
         Map<String, Object> data = adminUserManagementService.invite(actor,
                 request.getEmail(), request.getDisplayName(), request.getRole(),
                 request.getAllowedModules());
+        boolean emailDelivered = Boolean.TRUE.equals(data.get("emailDelivered"));
         return ResponseEntity.ok()
                 .body(ApiResponse.<Map<String, Object>>builder()
                         .success(true)
-                        .message("Invite sent. The recipient will set their own password.")
+                        .message(emailDelivered
+                                ? "Invite sent. The recipient will set their own password."
+                                : (String) data.get("emailMessage"))
                         .data(data)
                         .build());
     }
