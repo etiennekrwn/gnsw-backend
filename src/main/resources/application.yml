@@ -1,5 +1,13 @@
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    encoding:
+      # Force UTF-8 on every request body and response so all text (JSON from
+      # the API, emails, error messages) stays consistent UTF-8 and is never
+      # misinterpreted as ISO-8859-1 / Windows-1252 (the cause of mojibake).
+      charset: UTF-8
+      enabled: true
+      force: true
 
 spring:
   application:
@@ -19,6 +27,9 @@ spring:
       idle-timeout: 300000
       max-lifetime: 600000
       leak-detection-threshold: 60000
+      # Force UTF-8 client encoding on every pooled DB connection so text read
+      # from / written to the database is never corrupted at the connection level.
+      connection-init-sql: SET client_encoding TO 'UTF8'
 
   jpa:
     hibernate:
