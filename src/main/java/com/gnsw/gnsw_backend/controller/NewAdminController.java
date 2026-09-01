@@ -4,9 +4,12 @@ import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.entity.AdminUser;
 import com.gnsw.gnsw_backend.entity.Application;
 import com.gnsw.gnsw_backend.entity.Member;
+import com.gnsw.gnsw_backend.entity.MemberSubscription;
+import com.gnsw.gnsw_backend.entity.Payment;
 import com.gnsw.gnsw_backend.entity.User;
 import com.gnsw.gnsw_backend.enums.ApplicationStatus;
 import com.gnsw.gnsw_backend.enums.MembershipTier;
+import com.gnsw.gnsw_backend.enums.PaymentStatus;
 import com.gnsw.gnsw_backend.enums.UserStatus;
 import com.gnsw.gnsw_backend.repository.AdminUserRepository;
 import com.gnsw.gnsw_backend.repository.MemberRepository;
@@ -31,7 +34,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -80,12 +85,52 @@ public class NewAdminController {
     @GetMapping("/applications/{id}")
     public ResponseEntity<ApiResponse<Application>> getApplicationDetail(@PathVariable UUID id) {
         Application application = newApplicationService.getApplication(id);
+        enrichApplicationPayment(application);
         return ResponseEntity.ok()
                 .body(ApiResponse.<Application>builder()
                         .success(true)
                         .message("Application details retrieved.")
                         .data(application)
                         .build());
+    }
+
+    /**
+     * For an APPROVED application, populate the payment status + reference from the
+     * member's real payment/subscription record so the admin detail page can show
+     * whether the accepted member has paid their annual dues and their payment reference.
+     * Pending and rejected applications are left untouched (no payment happens until approval).
+     */
+    private void enrichApplicationPayment(Application application) {
+        if (application == null || application.getStatus() != ApplicationStatus.APPROVED) {
+            return;
+        }
+
+        User user = userRepository.findByEmail(application.getEmail()).orElse(null);
+        if (user == null) {
+            // Accepted application with no user record yet — treat as not yet paid.
+            application.setPaymentStatus("PAYMENT_DUE");
+            return;
+        }
+
+        MemberSubscription subscription = memberSubscriptionRepository.findByUserId(user.getId()).orElse(null);
+        boolean paid = subscription != null && "active".equalsIgnoreCase(subscription.getStatus());
+
+        // Latest successful payment, if any.
+        List<Payment> successful = paymentRepository.findAllByUserIdAndStatus(user.getId(), PaymentStatus.SUCCESS);
+        String reference = null;
+        if (!successful.isEmpty()) {
+            reference = successful.stream()
+                    .max(Comparator.comparing(Payment::getPaidAt, Comparator.nullsFirst(Comparator.naturalOrder())))
+                    .map(Payment::getReference)
+                    .orElse(null);
+        }
+        if (reference == null && subscription != null && subscription.getSubscriptionCode() != null
+                && !subscription.getSubscriptionCode().isBlank()) {
+            reference = subscription.getSubscriptionCode();
+        }
+
+        application.setPaymentStatus(paid ? "ACTIVE" : "PAYMENT_DUE");
+        application.setPaymentReference(reference);
     }
 
     @PostMapping("/applications/{id}/approve")
