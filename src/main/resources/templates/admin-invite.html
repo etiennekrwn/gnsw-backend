@@ -37,7 +37,7 @@
                 <a th:href="${acceptUrl}" style="display:inline-block;background-color:#111418;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:14px;font-weight:bold;">Accept Invite &amp; Set Password</a>
               </div>
               <p style="color:#999;font-size:12px;line-height:1.5;margin:0;">
-                This link is for <strong th:text="${acceptMail:''}">your email account</strong> only, is valid for
+                This link is for <strong th:text="${acceptMail ?: ''}">your email account</strong> only, is valid for
                 <strong>72 hours</strong>, and can be used once. If you weren't expecting this, please ignore it and contact the GNSW Super Admin.
               </p>
             </td>

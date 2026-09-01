@@ -9,6 +9,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -48,7 +49,7 @@ public class EmailService {
 
     @Async
     public void sendOtpEmail(String to, String otpCode) {
-        sendEmail(to, "Verify Your Email ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â GNSW Membership Application",
+        sendEmail(to, "Verify Your Email — GNSW Membership Application",
                 "otp-email", "otpCode", otpCode);
     }
 
@@ -58,7 +59,7 @@ public class EmailService {
         context.setVariable("tier", tier);
         context.setVariable("amount", amount);
         String html = templateEngine.process("payment-confirmation", context);
-        sendHtmlEmail(to, "Payment Received ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â GNSW Application Under Review", html);
+        sendHtmlEmail(to, "Payment Received — GNSW Application Under Review", html);
     }
 
     @Async
@@ -84,7 +85,7 @@ public class EmailService {
         context.setVariable("setPasswordUrl", memberPortalUrl + "/set-password?token=" + token + "&email=" + to);
         context.setVariable("customMessage", customMessage);
         String html = templateEngine.process("approval-email", context);
-        sendHtmlEmail(to, "Welcome to the Guild of Nigerian Speechwriters! ÃƒÂ°Ã…Â¸Ã…Â½Ã¢â‚¬Â°", html);
+        sendHtmlEmail(to, "Welcome to the Guild of Nigerian Speechwriters! 🎉", html);
     }
 
     @Async
@@ -121,7 +122,7 @@ public class EmailService {
      * Synchronous (NOT @Async) on purpose: the admin UI relies on the boolean
      * result to surface a delivery failure instead of silently reporting a
      * successful "Invite sent" while no email actually went out. Returning false
-     * does NOT roll back the invite row ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the account is still created and can be
+     * does NOT roll back the invite — the account is still created and can be
      * re-invited once the email configuration (BREVO_API_KEY / MAIL_SENDER_EMAIL) is fixed.
      *
      * @return true iff Brevo accepted the email (HTTP 2xx).
@@ -132,7 +133,11 @@ public class EmailService {
         context.setVariable("displayName", displayName);
         context.setVariable("roleLabel", roleLabel);
         context.setVariable("modulesLabel", modulesLabel == null ? "" : modulesLabel);
-        context.setVariable("acceptUrl", adminUrl + "/accept-invite?token=" + token + "&email=" + to);
+        // Populate the "This link is for … only" line in the template, and
+        // URL-encode the address so it can never corrupt the query string.
+        context.setVariable("acceptMail", to);
+        context.setVariable("acceptUrl", adminUrl + "/accept-invite?token=" + token
+                + "&email=" + URLEncoder.encode(to, StandardCharsets.UTF_8));
         String html = templateEngine.process("admin-invite", context);
         return sendHtmlEmail(to, "You've been invited to the GNSW Admin Console", html);
     }

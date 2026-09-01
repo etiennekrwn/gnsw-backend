@@ -73,6 +73,12 @@ public class AdminUserManagementService {
         if (adminUserRepository.findByEmail(normalizedEmail).isPresent()) {
             throw new IllegalArgumentException("An admin account already exists for that email.");
         }
+        if (displayName == null || displayName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Display name is required.");
+        }
+        if (displayName.trim().length() > 120) {
+            throw new IllegalArgumentException("Display name must be 120 characters or fewer.");
+        }
 
         String modulesCsv = null;
         if (role == AdminRole.MANAGER) {
@@ -120,11 +126,10 @@ public class AdminUserManagementService {
         if (target.getStatus() != AdminStatus.INVITED) {
             throw new IllegalArgumentException("Only pending invites can be resent.");
         }
-        LocalDateTime now = LocalDateTime.now();
+        // Generate a fresh token but only persist it AFTER the email is actually
+        // delivered, so a failed resend leaves the existing invite link intact
+        // instead of silently invalidating it with a token nobody received.
         String raw = AdminInviteToken.generateRaw();
-        target.setInviteTokenHash(AdminInviteToken.sha256(raw));
-        target.setInviteTokenExpiresAt(now.plusHours(INVITE_HOURS));
-        adminUserRepository.save(target);
         String label = target.getRole() == AdminRole.ADMIN
                 ? "Full access (all modules)"
                 : AdminLabels.modulesLabel(AdminPermissions.allowedModules(target));
@@ -132,8 +137,13 @@ public class AdminUserManagementService {
                 AdminLabels.roleLabel(target.getRole()), label, raw);
         if (!delivered) {
             throw new IllegalArgumentException("The invite email could not be sent. Check BREVO_API_KEY / " +
-                    "MAIL_SENDER_EMAIL configuration and try again. The account remains INVITED.");
+                    "MAIL_SENDER_EMAIL configuration and try again. The account remains INVITED " +
+                    "and its existing invite link is unchanged.");
         }
+        LocalDateTime now = LocalDateTime.now();
+        target.setInviteTokenHash(AdminInviteToken.sha256(raw));
+        target.setInviteTokenExpiresAt(now.plusHours(INVITE_HOURS));
+        adminUserRepository.save(target);
     }
 
     public void revokeInvite(AdminUser actor, UUID id) {
