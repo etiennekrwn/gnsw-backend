@@ -3,6 +3,7 @@ package com.gnsw.gnsw_backend.controller;
 import com.gnsw.gnsw_backend.dto.request.CreateArticleRequest;
 import com.gnsw.gnsw_backend.dto.response.ApiResponse;
 import com.gnsw.gnsw_backend.dto.response.ArticleResponse;
+import com.gnsw.gnsw_backend.entity.AdminUser;
 import com.gnsw.gnsw_backend.enums.ArticleStatus;
 import com.gnsw.gnsw_backend.service.ArticleService;
 import jakarta.validation.Valid;
@@ -87,7 +88,11 @@ public class AdminArticleController {
     public ResponseEntity<ApiResponse<ArticleResponse>> create(
             @Valid @RequestBody CreateArticleRequest request,
             Authentication authentication) {
-        ArticleResponse article = articleService.createArticle(authentication.getName(), request);
+        Object principal = authentication.getPrincipal();
+        String authorIdentity = (principal instanceof AdminUser adminUser)
+                ? adminUser.getEmail()
+                : authentication.getName();
+        ArticleResponse article = articleService.createArticle(authorIdentity, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<ArticleResponse>builder()
                         .success(true)

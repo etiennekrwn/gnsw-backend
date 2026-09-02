@@ -77,15 +77,17 @@ public class ArticleService {
     // ------------------------------------------------------------------
 
     public List<ArticleResponse> getMyArticles(String username) {
-        User author = findByUsername(username);
+        User author = resolveUser(username);
         return articleRepository.findByAuthorIdAndStatusOrderByCreatedAtDesc(
                         author.getId(), ArticleStatus.PUBLISHED)
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     public ArticleResponse createArticle(String username, CreateArticleRequest request) {
-        User author = findByUsername(username);
+        User author = resolveUser(username);
 
+        ArticleStatus articleStatus = resolveStatus(request.getStatus());
+        boolean isPublished = articleStatus == ArticleStatus.PUBLISHED;
         Article article = Article.builder()
                 .author(author)
                 .title(request.getTitle().trim())
@@ -101,8 +103,8 @@ public class ArticleService {
                 .views(0L)
                 .commentCount(0)
                 .featured(false)
-                .status(ArticleStatus.PUBLISHED)
-                .publishedAt(LocalDateTime.now())
+                .status(articleStatus)
+                .publishedAt(isPublished ? LocalDateTime.now() : null)
                 .build();
 
         article = articleRepository.save(article);
@@ -142,8 +144,20 @@ public class ArticleService {
     // Helpers
     // ------------------------------------------------------------------
 
-    private User findByUsername(String username) {
-        return userRepository.findByUsername(username)
+    private ArticleStatus resolveStatus(String status) {
+        if (status != null && !status.isBlank()) {
+            try {
+                return ArticleStatus.valueOf(status.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                // unknown status -> fall through to default
+            }
+        }
+        return ArticleStatus.PUBLISHED;
+    }
+
+    private User resolveUser(String identity) {
+        return userRepository.findByUsername(identity)
+                .or(() -> userRepository.findByEmail(identity))
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
     }
 
